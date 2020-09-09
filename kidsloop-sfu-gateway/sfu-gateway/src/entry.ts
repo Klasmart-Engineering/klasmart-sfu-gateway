@@ -52,7 +52,7 @@ class RedisKeys {
   }
 }
 
-const port = Number(process.env.PORT) || 8080
+const port = Number(process.env.PORT) || 8002
 async function main() {
   try {
     await redis.connect();
