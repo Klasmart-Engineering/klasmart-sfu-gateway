@@ -15,26 +15,6 @@ async function getSfuAddress(roomId: string) {
   const sfu = RedisKeys.roomSfu(roomId);
   const address = await redis.get(sfu.key);
   if(address) { return address; }
-  // const notify = RedisKeys.roomNotify(roomId);
-  // let lastNotifyIndex = "$";
-  // const endTime =  Date.now() + 10*1000;
-  // while (Date.now() < endTime) {
-  //     const responses = await redis.xread(
-  //         "BLOCK", 10,
-  //         "STREAMS",
-  //         notify.key,
-  //         lastNotifyIndex,
-  //     );
-  //     if (!responses) { continue; }
-  //     for (const [, response] of responses) {
-  //         for (const [id, keyValues] of response as any) {
-  //             lastNotifyIndex = id;
-  //             if(keyValues[0] !== "json") { continue }
-  //             const { sfuAddress } = JSON.parse(keyValues[1])
-  //             if(sfuAddress) {return sfuAddress as string;}
-  //         }
-  //     }
-  // }
 }
 
 //TODO: Make RedisKeys shared component a library
