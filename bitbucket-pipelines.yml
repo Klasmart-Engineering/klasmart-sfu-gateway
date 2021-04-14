@@ -1,0 +1,34 @@
+
+pipelines:
+  default:
+    - step:
+        name: 'Build NPM'
+        image: node:lts
+        script:
+          - npm i
+        caches:
+          - nodemodules
+        artifacts:
+          - node_modules/**
+    - step:
+        name: 'Docker build'
+        image: python:3.7.4-alpine3.10
+        script:
+          - pip3 install -U awscli
+
+          - aws configure set aws_access_key_id "${AWS_KEY}"
+          - aws configure set aws_secret_access_key "${AWS_SECRET}"
+          - eval $(aws ecr get-login --no-include-email --region eu-west-2 | sed 's;https://;;g')
+
+          - docker build -t kidsloop-sfu-gateway .
+          - docker tag kidsloop-sfu-gateway:latest 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu-gateway:latest
+          - docker tag kidsloop-sfu-gateway:latest 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu-gateway:latest-$BITBUCKET_BUILD_NUMBER
+          - docker push 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu-gateway:latest
+          - docker push 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu-gateway:latest-$BITBUCKET_BUILD_NUMBER
+        services:
+          - docker
+
+
+definitions:
+  caches:
+    nodemodules: ./node_modules
