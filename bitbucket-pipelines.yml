@@ -12,7 +12,8 @@ pipelines:
           - node_modules/**
     - step:
         name: 'Docker build'
-        image: python:3.7.4-alpine3.10
+#        image: python:3.7.4-alpine3.10
+        image: python:3.9-alpine
         script:
           - pip3 install -U awscli
 
