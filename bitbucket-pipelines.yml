@@ -11,7 +11,7 @@ pipelines:
         artifacts:
           - node_modules/**
     - step:
-        name: 'Docker build'
+        name: 'Docker build + push to ECR'
         image: python:3.9-alpine
         script:
           - pip3 install -U awscli
@@ -20,6 +20,7 @@ pipelines:
           - aws configure set aws_secret_access_key "${AWS_SECRET}"
           - eval $(aws ecr get-login --no-include-email --region eu-west-2 | sed 's;https://;;g')
 
+          - cp deploy/Dockerfile.bitbucket-pipeline .
           - docker build -t kidsloop-sfu-gateway -f Dockerfile.bitbucket-pipeline .
           - docker tag kidsloop-sfu-gateway:latest 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu-gateway:latest
           - docker tag kidsloop-sfu-gateway:latest 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu-gateway:latest-$BITBUCKET_BUILD_NUMBER
