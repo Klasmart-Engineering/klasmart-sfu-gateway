@@ -16,16 +16,22 @@ pipelines:
         script:
           - pip3 install -U awscli
 
-          - aws configure set aws_access_key_id "${AWS_KEY}"
-          - aws configure set aws_secret_access_key "${AWS_SECRET}"
-          - eval $(aws ecr get-login --no-include-email --region eu-west-2 | sed 's;https://;;g')
-
+          - export BRANCH_TAG=$(echo "$BITBUCKET_BRANCH" | sed -E 's/([^0-9a-zA-Z]+)/-/g' | awk '{print tolower($0)}')
+          - export REPO=$DOCKER_REPO_URL/kidsloop-sfu-gateway  # DOCKER_REPO_URL is workspace wide variable
+        
+          - aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin $DOCKER_REPO_URL
+          
           - cp deploy/Dockerfile.bitbucket-pipeline .
           - docker build -t kidsloop-sfu-gateway -f Dockerfile.bitbucket-pipeline .
-          - docker tag kidsloop-sfu-gateway:latest 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu-gateway:$BITBUCKET_BRANCH-latest
-          - docker tag kidsloop-sfu-gateway:latest 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu-gateway:$BITBUCKET_BRANCH-$BITBUCKET_BUILD_NUMBER
-          - docker push 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu-gateway:$BITBUCKET_BRANCH-latest
-          - docker push 942095822719.dkr.ecr.eu-west-2.amazonaws.com/kidsloop-sfu-gateway:$BITBUCKET_BRANCH-$BITBUCKET_BUILD_NUMBER
+    
+          - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG
+          - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG-latest
+          - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
+
+          - docker push $REPO:$BRANCH_TAG
+          - docker push $REPO:$BRANCH_TAG-latest
+          - docker push $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
+
         services:
           - docker
 
