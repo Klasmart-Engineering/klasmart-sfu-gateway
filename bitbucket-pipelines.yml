@@ -28,7 +28,7 @@ pipelines:
           - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG
           - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG-latest
           - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
-          - docker tag kidsloop-sfu:latest $REPO:$BRANCH_TAG-$COMMIT_TAG
+          - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG-$COMMIT_TAG
 
           - docker push $REPO:$BRANCH_TAG
           - docker push $REPO:$BRANCH_TAG-latest
