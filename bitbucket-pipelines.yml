@@ -18,7 +18,8 @@ pipelines:
 
           - export BRANCH_TAG=$(echo "$BITBUCKET_BRANCH" | sed -E 's/([^0-9a-zA-Z]+)/-/g' | awk '{print tolower($0)}')
           - export REPO=$DOCKER_REPO_URL/kidsloop-sfu-gateway  # DOCKER_REPO_URL is workspace wide variable
-          - export COMMIT_TAG=$(git rev-parse --short HEAD)
+          - export COMMIT_TAG=$(echo $BITBUCKET_COMMIT | cut -c1-7)
+          - printf '"Git tag":"%s", "Git commit":"%s" "ECR repo":"%s"' $BRANCH_TAG $COMMIT_TAG $REPO
 
           - aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin $DOCKER_REPO_URL
           
