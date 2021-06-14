@@ -41,26 +41,39 @@ async function main() {
     const proxy = httpProxy.createProxyServer({});
 
     http.createServer((req, res) => {
-      console.log("request")
       if(req.url === "/server-health") {
         res.statusCode = 200
         res.statusMessage = "Ok"
       } else {
         res.statusCode = 400
       }
+      console.log("Request: "+req.url+" ("+res.statusCode+")")
       res.end()
     })
     .on('upgrade', async (req: IncomingMessage, socket: Duplex, head: Buffer) => {
       try{
-        if(!req.url) { socket.end(); return; }
+        if(!req.url) { 
+          socket.end(); 
+          console.error("Empty req.url on upgrade to websocket")
+          return; 
+        }
         const match = req.url.match(/^\/sfu\/([^\/]*)/)
-        if(!match) { socket.end(); return; }
+        if(!match) { 
+          socket.end(); 
+          console.error("No roomid found in req.url ("+req.url+") on upgrade to websocket")
+          return; 
+        }
         const roomId = match[1]
         
         const sfuAddress = await getSfuAddress(roomId)
-        if(!sfuAddress) { socket.end(); return; }
+        if(!sfuAddress) { 
+          socket.end(); 
+          console.error("No sfu address found in Redis for roomid: "+roomId+") on upgrade to websocket")
+          return; 
+        }
+
         const target = `ws://${sfuAddress}`
-        console.log(target)
+        console.log("Proxying to target: "+target)
         proxy.ws(req, socket, head, { target, ignorePath: true })
       } catch(e) {
         socket.end()
