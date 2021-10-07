@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "http-proxy": "^1.18.1",
-    "ioredis": "^4.17.3"
+    "ioredis": "^4.17.3",
+    "newrelic": "^8.4.0"
   }
 }
