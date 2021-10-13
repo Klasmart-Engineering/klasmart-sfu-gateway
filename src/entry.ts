@@ -1,3 +1,4 @@
+import "newrelic";
 import Redis = require("ioredis")
 import http, {IncomingMessage} from "http";
 import httpProxy from "http-proxy";
