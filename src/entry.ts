@@ -1,8 +1,8 @@
 import "newrelic";
-import Redis = require("ioredis")
-import http, {IncomingMessage} from "http";
+import Redis from "ioredis";
+import http, { IncomingMessage } from "http";
 import httpProxy from "http-proxy";
-import {Duplex} from "stream"
+import { Duplex } from "stream"
 
 const redis = new Redis({
   host: process.env.REDIS_HOST,
@@ -16,6 +16,7 @@ async function getSfuAddress(roomId: string) {
   const sfu = RedisKeys.roomSfu(roomId);
   const address = await redis.get(sfu.key);
   if(address) { return address; }
+  return null;
 }
 
 //TODO: Make RedisKeys shared component a library
