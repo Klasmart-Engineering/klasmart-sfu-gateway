@@ -24,6 +24,7 @@
     "webpack-node-externals": "^3.0.0"
   },
   "dependencies": {
+    "@types/newrelic": "^7.0.2",
     "http-proxy": "^1.18.1",
     "ioredis": "^4.17.3",
     "newrelic": "^8.4.0"
