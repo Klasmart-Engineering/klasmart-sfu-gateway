@@ -1,31 +1,32 @@
-
 pipelines:
   default:
     - step:
-        name: 'Build NPM'
+        name: "Build NPM"
         image: node:lts
         script:
-          - npm i
+          - npm ci
+          - npm run build
         caches:
           - nodemodules
         artifacts:
           - node_modules/**
+          - dist/**
     - step:
-        name: 'Docker build + push to ECR'
+        name: "Docker build + push to ECR"
         image: python:3.9-alpine
         script:
           - pip3 install -U awscli
 
           - export BRANCH_TAG=$(echo "$BITBUCKET_BRANCH" | sed -E 's/([^0-9a-zA-Z]+)/-/g' | awk '{print tolower($0)}')
-          - export REPO=$DOCKER_REPO_URL/kidsloop-sfu-gateway  # DOCKER_REPO_URL is workspace wide variable
+          - export REPO=$DOCKER_REPO_URL/kidsloop-sfu-gateway # DOCKER_REPO_URL is workspace wide variable
           - export COMMIT_TAG=$(echo $BITBUCKET_COMMIT | cut -c1-7)
           - printf '"Git tag":"%s", "Git commit":"%s" "ECR repo":"%s"' $BRANCH_TAG $COMMIT_TAG $REPO
 
           - aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin $DOCKER_REPO_URL
-          
+
           - cp deploy/Dockerfile.bitbucket-pipeline .
           - docker build -t kidsloop-sfu-gateway -f Dockerfile.bitbucket-pipeline .
-    
+
           - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG
           - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG-latest
           - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
@@ -38,7 +39,6 @@ pipelines:
 
         services:
           - docker
-
 
 definitions:
   caches:
