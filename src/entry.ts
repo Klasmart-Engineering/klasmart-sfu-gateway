@@ -19,7 +19,7 @@ class RedisKeys {
   }
 
   private static room (roomId: string): string {
-    return `room:${roomId}`;
+    return `room:{${roomId}}`;
   }
 }
 
