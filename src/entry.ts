@@ -1,21 +1,15 @@
 import "newrelic";
-import Redis = require("ioredis")
-import http, {IncomingMessage} from "http";
+import Redis from "ioredis";
+import http, { IncomingMessage } from "http";
 import httpProxy from "http-proxy";
-import {Duplex} from "stream"
+import { Duplex } from "stream";
+import dotenv from "dotenv";
 
-const redis = new Redis({
-  host: process.env.REDIS_HOST,
-  port: Number(process.env.REDIS_PORT) || undefined,
-  password: process.env.REDIS_PASS || undefined,
-  lazyConnect: true,
-});
-
-
-async function getSfuAddress(roomId: string) {
+async function getSfuAddress(roomId: string, redis: Redis.Redis | Redis.Cluster) {
   const sfu = RedisKeys.roomSfu(roomId);
   const address = await redis.get(sfu.key);
   if(address) { return address; }
+  return null;
 }
 
 //TODO: Make RedisKeys shared component a library
@@ -24,21 +18,47 @@ class RedisKeys {
     return { key: `${RedisKeys.room(roomId)}:sfu`, ttl: 3600 };
   }
 
-  public static roomNotify (roomId: string) {
-    return { key: `${RedisKeys.room(roomId)}:notify`, ttl: 3600 };
-  }
-
   private static room (roomId: string): string {
-    return `room:${roomId}`;
+    return `room:{${roomId}}`;
   }
 }
 
-const port = Number(process.env.PORT) || 8002
 async function main() {
+  dotenv.config();
   try {
+    const host = process.env.REDIS_HOST;
+    const port = Number(process.env.REDIS_PORT) || undefined;
+    const password = process.env.REDIS_PASS;
+    const lazyConnect = true;
+    const redisMode = process.env.REDIS_MODE ?? "NODE";
+
+    const appPort = Number(process.env.PORT) || 8002;
+
+    let redis: Redis.Redis | Redis.Cluster;
+    if (redisMode === "CLUSTER") {
+      redis = new Redis.Cluster([
+        {
+          host,
+          port
+        }
+      ], {
+        lazyConnect,
+        redisOptions: {
+          password
+        }
+      });
+    } else {
+      redis = new Redis({
+        host,
+        port,
+        password,
+        lazyConnect,
+      });
+    }
+
     await redis.connect();
     console.log("🔴 Redis database connected");
-    
+
     const proxy = httpProxy.createProxyServer({});
 
     http.createServer((req, res) => {
@@ -53,24 +73,24 @@ async function main() {
     })
     .on('upgrade', async (req: IncomingMessage, socket: Duplex, head: Buffer) => {
       try{
-        if(!req.url) { 
-          socket.end(); 
+        if(!req.url) {
+          socket.end();
           console.error("Empty req.url on upgrade to websocket")
-          return; 
+          return;
         }
         const match = req.url.match(/^\/sfu\/([^\/]*)/)
-        if(!match) { 
-          socket.end(); 
+        if(!match) {
+          socket.end();
           console.error("No roomid found in req.url ("+req.url+") on upgrade to websocket")
-          return; 
+          return;
         }
         const roomId = match[1]
-        
-        const sfuAddress = await getSfuAddress(roomId)
-        if(!sfuAddress) { 
-          socket.end(); 
+
+        const sfuAddress = await getSfuAddress(roomId, redis)
+        if(!sfuAddress) {
+          socket.end();
           console.error("No sfu address found in Redis for roomid: "+roomId+") on upgrade to websocket")
-          return; 
+          return;
         }
 
         const target = `ws://${sfuAddress}`
@@ -81,9 +101,9 @@ async function main() {
         console.error(e)
       }
     })
-    .listen(port, () => {
-      console.log(`🌎 Server available on port ${port}`)
-      process.on('uncaughtException',  (err) => { console.log(err) }); 
+    .listen(appPort, () => {
+      console.log(`🌎 Server available on port ${appPort}`)
+      process.on('uncaughtException',  (err) => { console.log(err) });
     })
   } catch(e) {
     console.error(e)
