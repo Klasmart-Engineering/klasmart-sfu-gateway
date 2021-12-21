@@ -5,21 +5,17 @@ import httpProxy from "http-proxy";
 import { Duplex } from "stream";
 import dotenv from "dotenv";
 
-async function getSfuAddress(roomId: string, redis: Redis.Redis | Redis.Cluster) {
-  const sfu = RedisKeys.roomSfu(roomId);
-  const address = await redis.get(sfu.key);
+async function getSfuAddress(sfuId: string, redis: Redis.Redis | Redis.Cluster) {
+  const sfu = RedisKeys.sfuId(sfuId);
+  const address = await redis.get(sfu);
   if(address) { return address; }
   return null;
 }
 
 //TODO: Make RedisKeys shared component a library
 class RedisKeys {
-  public static roomSfu (roomId: string) {
-    return { key: `${RedisKeys.room(roomId)}:sfu`, ttl: 3600 };
-  }
-
-  private static room (roomId: string): string {
-    return `room:{${roomId}}`;
+  public static sfuId(id: string) {
+    return `sfu:{${id}}`;
   }
 }
 
@@ -84,12 +80,12 @@ async function main() {
           console.error("No roomid found in req.url ("+req.url+") on upgrade to websocket")
           return;
         }
-        const roomId = match[1]
+        const sfuId = match[1]
 
-        const sfuAddress = await getSfuAddress(roomId, redis)
+        const sfuAddress = await getSfuAddress(sfuId, redis)
         if(!sfuAddress) {
           socket.end();
-          console.error("No sfu address found in Redis for roomid: "+roomId+") on upgrade to websocket")
+          console.error(`No sfu address found in Redis for sfu id: ${sfuId} on upgrade to websocket`)
           return;
         }
 
@@ -109,7 +105,6 @@ async function main() {
     console.error(e)
     process.exit(-1)
   }
-
 }
 
 main()
