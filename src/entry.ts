@@ -5,7 +5,14 @@ import httpProxy from "http-proxy";
 import { Duplex } from "stream";
 import dotenv from "dotenv";
 
-async function getSfuAddress(sfuId: string, redis: Redis.Redis | Redis.Cluster) {
+async function getSfuAddressV1(roomId: string, redis: Redis.Redis | Redis.Cluster) {
+    const sfu = RedisKeys.roomSfu(roomId);
+    const address = await redis.get(sfu.key);
+    if(address) { return address; }
+    return null;
+}
+
+async function getSfuAddressV2(sfuId: string, redis: Redis.Redis | Redis.Cluster) {
     const sfu = RedisKeys.sfuId(sfuId);
     const address = await redis.get(sfu);
     if(address) { return address; }
@@ -16,6 +23,14 @@ async function getSfuAddress(sfuId: string, redis: Redis.Redis | Redis.Cluster) 
 class RedisKeys {
     public static sfuId(id: string) {
         return `sfu:{${id}}`;
+    }
+
+    public static roomSfu (roomId: string) {
+        return { key: `${RedisKeys.room(roomId)}:sfu`, ttl: 3600 };
+    }
+
+    private static room (roomId: string): string {
+        return `room:{${roomId}}`;
     }
 }
 
@@ -74,18 +89,28 @@ async function main() {
                         console.error("Empty req.url on upgrade to websocket");
                         return;
                     }
-                    const match = req.url.match(/^\/sfu\/([^/]*)/);
-                    if(!match) {
+                    const v1Match = req.url.match(/^\/sfu\/([^/]*)/);
+                    const v2Match = req.url.match(/^\/sfu\/v2\/([^/]*)/);
+                    let sfuAddress = undefined;
+                    if (v1Match) {
+                        const roomId = v1Match[1];
+                        sfuAddress = await getSfuAddressV1(roomId, redis);
+                        if(!sfuAddress) {
+                            socket.end();
+                            console.error(`No sfu address found in Redis for Room ID: ${roomId} on upgrade to websocket`);
+                            return;
+                        }
+                    } else if (v2Match) {
+                        const sfuId = v2Match[1];
+                        sfuAddress = await getSfuAddressV2(sfuId, redis);
+                        if(!sfuAddress) {
+                            socket.end();
+                            console.error(`No sfu address found in Redis for SFU ID: ${sfuId} on upgrade to websocket`);
+                            return;
+                        }
+                    } else {
                         socket.end();
-                        console.error(`No roomid found in req.url (${req.url}) on upgrade to websocket`);
-                        return;
-                    }
-                    const sfuId = match[1];
-
-                    const sfuAddress = await getSfuAddress(sfuId, redis);
-                    if(!sfuAddress) {
-                        socket.end();
-                        console.error(`No sfu address found in Redis for sfu id: ${sfuId} on upgrade to websocket`);
+                        console.error(`No id found in req.url (${req.url}) on upgrade to websocket`);
                         return;
                     }
 
