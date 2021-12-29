@@ -90,22 +90,22 @@ async function main() {
                         return;
                     }
                     const v1Match = req.url.match(/^\/sfu\/([^/]*)/);
-                    const v2Match = req.url.match(/^\/sfu\/v2\/([^/]*)/);
+                    const v2Match = req.url.match(/^\/v2\/sfu\/([^/]*)/);
                     let sfuAddress = undefined;
-                    if (v1Match) {
-                        const roomId = v1Match[1];
-                        sfuAddress = await getSfuAddressV1(roomId, redis);
-                        if(!sfuAddress) {
-                            socket.end();
-                            console.error(`No sfu address found in Redis for Room ID: ${roomId} on upgrade to websocket`);
-                            return;
-                        }
-                    } else if (v2Match) {
+                    if (v2Match) {
                         const sfuId = v2Match[1];
                         sfuAddress = await getSfuAddressV2(sfuId, redis);
                         if(!sfuAddress) {
                             socket.end();
                             console.error(`No sfu address found in Redis for SFU ID: ${sfuId} on upgrade to websocket`);
+                            return;
+                        }
+                    } else if (v1Match) {
+                        const roomId = v1Match[1];
+                        sfuAddress = await getSfuAddressV1(roomId, redis);
+                        if(!sfuAddress) {
+                            socket.end();
+                            console.error(`No sfu address found in Redis for Room ID: ${roomId} on upgrade to websocket`);
                             return;
                         }
                     } else {
