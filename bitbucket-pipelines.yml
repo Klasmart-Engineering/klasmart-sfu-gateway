@@ -1,44 +1,56 @@
 pipelines:
-  default:
-    - step:
-        name: "Build NPM"
-        image: node:lts
-        script:
-          - npm ci
-          - npm run build
-        caches:
-          - nodemodules
-        artifacts:
-          - node_modules/**
-          - dist/**
-    - step:
-        name: "Docker build + push to ECR"
-        image: python:3.9-alpine
-        script:
-          - pip3 install -U awscli
+  branches:
+    master:
+      - step: &step-secret-check
+          name: Atlassian Security Secrets Scan
+          script:
+            - pipe: atlassian/git-secrets-scan:0.5.1
+      - step: &step-build-npm
+          name: "Build NPM"
+          image: node:lts
+          script:
+            - npm ci
+            - npm run build
+          caches:
+            - nodemodules
+          artifacts:
+            - node_modules/**
+            - dist/**
+      - step: &step-build-docker
+          name: "Docker build + push to ECR"
+          image: python:3.9-alpine
+          script:
+            - pip3 install -U awscli
 
-          - export BRANCH_TAG=$(echo "$BITBUCKET_BRANCH" | sed -E 's/([^0-9a-zA-Z]+)/-/g' | awk '{print tolower($0)}')
-          - export REPO=$DOCKER_REPO_URL/kidsloop-sfu-gateway # DOCKER_REPO_URL is workspace wide variable
-          - export COMMIT_TAG=$(echo $BITBUCKET_COMMIT | cut -c1-7)
-          - printf '"Git tag":"%s", "Git commit":"%s" "ECR repo":"%s"' $BRANCH_TAG $COMMIT_TAG $REPO
+            - export BRANCH_TAG=$(echo "$BITBUCKET_BRANCH" | sed -E 's/([^0-9a-zA-Z]+)/-/g' | awk '{print tolower($0)}')
+            - export REPO=$DOCKER_REPO_URL/kidsloop-sfu-gateway # DOCKER_REPO_URL is workspace wide variable
+            - export COMMIT_TAG=$(echo $BITBUCKET_COMMIT | cut -c1-7)
+            - printf '"Git tag":"%s", "Git commit":"%s" "ECR repo":"%s"' $BRANCH_TAG $COMMIT_TAG $REPO
 
-          - aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin $DOCKER_REPO_URL
+            - aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin $DOCKER_REPO_URL
 
-          - cp deploy/Dockerfile.bitbucket-pipeline .
-          - docker build -t kidsloop-sfu-gateway -f Dockerfile.bitbucket-pipeline .
+            - cp deploy/Dockerfile.bitbucket-pipeline .
+            - docker build -t kidsloop-sfu-gateway -f Dockerfile.bitbucket-pipeline .
 
-          - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG
-          - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG-latest
-          - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
-          - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG-$COMMIT_TAG
+            - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG
+            - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG-latest
+            - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
+            - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG-$COMMIT_TAG
 
-          - docker push $REPO:$BRANCH_TAG
-          - docker push $REPO:$BRANCH_TAG-latest
-          - docker push $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
-          - docker push $REPO:$BRANCH_TAG-$COMMIT_TAG
+            - docker push $REPO:$BRANCH_TAG
+            - docker push $REPO:$BRANCH_TAG-latest
+            - docker push $REPO:$BRANCH_TAG-$BITBUCKET_BUILD_NUMBER
+            - docker push $REPO:$BRANCH_TAG-$COMMIT_TAG
 
-        services:
-          - docker
+          services:
+            - docker
+          caches:
+            - docker
+
+    alpha:
+      - step: *step-secret-check
+      - step: *step-build-npm
+      - step: *step-build-docker
 
 definitions:
   caches:
