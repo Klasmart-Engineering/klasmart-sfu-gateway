@@ -12,7 +12,7 @@ import { RedisRegistrar, SfuId, TrackInfo, TrackInfoEvent } from './redis';
 export function createExpressServer(registrar: RedisRegistrar) {
     const app = ws(express()).app;
 
-    app.get("/server-health", (req, res) => res.status(200));
+    app.get("/server-health", (_req, res) => res.status(200).end());
     
     app.ws("/room", async (ws, req) => {
         console.log(req.url);
@@ -40,7 +40,6 @@ export function createExpressServer(registrar: RedisRegistrar) {
     });
 
     app.use("/sfuid/:sfuId", createProxyMiddleware({
-        ws: true,
         router: async (req) => {
             try {
                 console.log(req.url)
@@ -50,7 +49,7 @@ export function createExpressServer(registrar: RedisRegistrar) {
                 const sfuAddress = await registrar.getSfuAddress(sfuId)
                 if(!sfuAddress) { throw new Error(`sfu address not found for sfuId("${sfuId}")`);}
                 
-                const url = `ws://${sfuAddress}`
+                const url = `ws://${sfuAddress}/`
                 console.log(`Proxying to target: ${url}`)
                 return url
             } catch(e) {
@@ -62,7 +61,6 @@ export function createExpressServer(registrar: RedisRegistrar) {
 
     /* Legacy behavior for sfu v1 */
     app.use("/sfu/:roomId", createProxyMiddleware({
-        ws: true,
         router: async (req) => {
             try {
                 const roomId = req.params["roomId"]
@@ -71,7 +69,7 @@ export function createExpressServer(registrar: RedisRegistrar) {
                 const sfuAddress = await registrar.getLegacySfuAddressByRoomId(roomId)
                 if(!sfuAddress) { throw new Error(`Legacy sfu address not found for roomid("${roomId}")`); }
                 
-                const url = `ws://${sfuAddress}`
+                const url = `ws://${sfuAddress}/`
                 console.log(`Proxying to target: ${url}`)
                 return url
             } catch(e) {
