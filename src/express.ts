@@ -1,12 +1,12 @@
 import cookie from "cookie";
-import express from 'express';
-import ws from 'express-ws'
-import { IncomingMessage } from 'http';
-import { createProxyMiddleware } from 'http-proxy-middleware';
+import express from "express";
+import ws from "express-ws";
+import { IncomingMessage } from "http";
+import { createProxyMiddleware } from "http-proxy-middleware";
 import { checkAuthenticationToken, checkLiveAuthorizationToken } from "kidsloop-token-validation";
-import WebSocket from 'ws'
+import WebSocket from "ws";
 
-import { RedisRegistrar, SfuId, TrackInfo, TrackInfoEvent } from './redis';
+import { newRoomId, newSfuId, newUserId, RedisRegistrar, SfuId, TrackInfo, TrackInfoEvent } from "./redis";
 
 
 export function createExpressServer(registrar: RedisRegistrar) {
@@ -16,20 +16,20 @@ export function createExpressServer(registrar: RedisRegistrar) {
     
     app.ws("/room", async (ws, req) => {
         console.log(req.url);
-        ws.addEventListener("message", (e) => console.log(e))
+        ws.addEventListener("message", (e) => console.log(e));
         const { roomId } = await handleAuth(req);
-        if(!roomId) { throw new Error(`No room RoomId`); }
+        if(!roomId) { throw new Error("No room RoomId"); }
 
-        let currentCursor = `${Date.now()}`
+        let currentCursor = `${Date.now()}`;
         {
-            const tracks = await registrar.getTracks(roomId)
+            const tracks = await registrar.getTracks(roomId);
             const sfuId = await selectSfu(registrar, tracks);
             const initialEvents = [
                 {sfuId},
                 ...tracks.map<TrackInfoEvent>(add => ({add})),
-            ]
+            ];
             console.log(initialEvents);
-            ws.send(JSON.stringify(initialEvents))
+            ws.send(JSON.stringify(initialEvents));
         }
         
         while(ws.readyState === WebSocket.OPEN) {
@@ -42,39 +42,39 @@ export function createExpressServer(registrar: RedisRegistrar) {
     app.use("/sfuid/:sfuId", createProxyMiddleware({
         router: async (req) => {
             try {
-                console.log(req.url)
-                const sfuId = req.params["sfuId"]
+                console.log(req.url);
+                const sfuId = newSfuId(req.params["sfuId"]);
                 if(!sfuId) { throw new Error(`No sfuId found in req.url("${req.url}")`); }
                 
-                const sfuAddress = await registrar.getSfuAddress(sfuId)
+                const sfuAddress = await registrar.getSfuAddress(sfuId);
                 if(!sfuAddress) { throw new Error(`sfu address not found for sfuId("${sfuId}")`);}
                 
-                const url = `ws://${sfuAddress}/`
-                console.log(`Proxying to target: ${url}`)
-                return url
+                const url = `ws://${sfuAddress}/`;
+                console.log(`Proxying to target: ${url}`);
+                return url;
             } catch(e) {
-                console.error(e)
-                return
+                console.error(e);
+                return;
             }
-        }
+        },
     }));
 
     /* Legacy behavior for sfu v1 */
     app.use("/sfu/:roomId", createProxyMiddleware({
         router: async (req) => {
             try {
-                const roomId = req.params["roomId"]
+                const roomId = req.params["roomId"];
                 if(!roomId) { throw new Error(`No roomId found in req.url("${req.url}")`); }
                 
-                const sfuAddress = await registrar.getLegacySfuAddressByRoomId(roomId)
+                const sfuAddress = await registrar.getLegacySfuAddressByRoomId(roomId);
                 if(!sfuAddress) { throw new Error(`Legacy sfu address not found for roomid("${roomId}")`); }
                 
-                const url = `ws://${sfuAddress}/`
-                console.log(`Proxying to target: ${url}`)
-                return url
+                const url = `ws://${sfuAddress}/`;
+                console.log(`Proxying to target: ${url}`);
+                return url;
             } catch(e) {
-                console.error(e)
-                return
+                console.error(e);
+                return;
             }
         },
     }));
@@ -83,8 +83,8 @@ export function createExpressServer(registrar: RedisRegistrar) {
 }
 
 async function selectSfu(registrar: RedisRegistrar, tracks: TrackInfo[]) {
-    const ids = tracks.reduce((ids,track) => ids.add(track.sfuId), new Set<SfuId>())
-    let randomIndex = 1 + Math.floor(ids.size*Math.random())
+    const ids = tracks.reduce((ids,track) => ids.add(track.sfuId), new Set<SfuId>());
+    let randomIndex = 1 + Math.floor(ids.size*Math.random());
     for(const id of ids) {
         if(randomIndex <= 0) {return id;}
         randomIndex--;
@@ -98,8 +98,8 @@ async function handleAuth(req: IncomingMessage) {
         console.warn("RUNNING IN DEBUG MODE - SKIPPING AUTHENTICATION AND AUTHORIZATION");
         return {
             userId: debugUserId(),
-            roomId: "test-room",
-            isTeacher: true
+            roomId: newRoomId("test-room"),
+            isTeacher: true,
         };
     }
 
@@ -119,11 +119,11 @@ async function handleAuth(req: IncomingMessage) {
     }
 
     return {
-        userId: authorizationToken.userid,
-        roomId: authorizationToken.roomid,
+        userId: newUserId(authorizationToken.userid),
+        roomId: newRoomId(authorizationToken.roomid),
         isTeacher: authorizationToken.teacher || false,
     };
 }
 
 let _debugUserCount = 0;
-function debugUserId() { return `debugUser${_debugUserCount++}`; }
+function debugUserId() { return newUserId(`debugUser${_debugUserCount++}`); }

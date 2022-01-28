@@ -1,9 +1,20 @@
 import { Cluster, Redis as IORedis } from "ioredis";
 
-export type SfuId = string & {}
-export type ProducerId = string & {}
-export type RoomId = string & {}
-export const newSfuId = (id: string) => id as SfuId
+export type Type<T> = string & {
+    /* This value does not exist during execution and is only used for type matching during compiletime */
+    __TYPE__: string extends T ? unknown : T
+}
+export type UserId = Type<"UserId">
+export const newUserId = (id: string) => id as UserId;
+
+export type SfuId = Type<"SfuId">
+export const newSfuId = (id: string) => id as SfuId;
+
+export type ProducerId = Type<"ProducerId">
+export const newProducerId = (id: string) => id as ProducerId;
+
+export type RoomId = Type<"RoomId">
+export const newRoomId = (id: string) => id as RoomId;
 
 export type TrackInfo = {
     sfuId: SfuId,
@@ -117,7 +128,7 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
     }
 
     public async waitForTrackChanges(roomId: RoomId, cursor="0") {
-        const redis = this.redis.duplicate()
+        const redis = this.redis.duplicate();
         try {
             const key = RedisRegistrar.keyNotification(RedisRegistrar.keyRoomTracks(roomId));
             const readResult = await redis.xread("BLOCK", 10000, "STREAMS", key, cursor);
