@@ -40,6 +40,7 @@ export function createExpressServer(registrar: RedisRegistrar) {
     });
 
     app.use("/sfuid/:sfuId", createProxyMiddleware({
+        ws: true,
         router: async (req) => {
             try {
                 console.log(req.url);
@@ -57,10 +58,14 @@ export function createExpressServer(registrar: RedisRegistrar) {
                 return;
             }
         },
+        onOpen: () => console.log("Open sfuid"),
+        onClose: (res) => console.log("Close sfuid", res.req.originalUrl),
+        onError: (err) => console.log("Error sfuid", err),
     }));
 
     /* Legacy behavior for sfu v1 */
     app.use("/sfu/:roomId", createProxyMiddleware({
+        ws: true,
         router: async (req) => {
             try {
                 const roomId = req.params["roomId"];
@@ -77,6 +82,9 @@ export function createExpressServer(registrar: RedisRegistrar) {
                 return;
             }
         },
+        onOpen: () => console.log("Open sfu"),
+        onClose: (res) => console.log("Close sfu", res.req.originalUrl),
+        onError: (err) => console.log("Error sfu", err),
     }));
 
     return app;
