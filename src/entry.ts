@@ -1,11 +1,12 @@
 import "newrelic";
 import { RedisRegistrar } from "./redis";
 import Redis from "ioredis";
-import { createExpressServer } from "./express";
+import { createServer } from "./service";
 import dotenv from "dotenv";
 
 async function main() {
     try {
+        process.on("uncaughtException",  (err) => { console.log(err); }); 
         //TODO: Cluster
         const redis = new Redis({
             host: process.env.REDIS_HOST,
@@ -18,14 +19,11 @@ async function main() {
         console.log("🔴 Redis database connected");
     
         const registrar = new RedisRegistrar(redis);
-        const app = createExpressServer(registrar);
+        const app = createServer(registrar);
     
         const port = Number(process.env.PORT) || 8002;
-        app.listen(port, () => {
-            console.log(`🌎 Server available on port ${port}`);
-            process.on("uncaughtException",  (err) => { console.log(err); }); 
-        });
-    
+        await app.listen(port);
+        console.log(`🌎 Server available on port ${port}`);
 
     } catch(e) {
         console.error(e);

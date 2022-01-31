@@ -12,11 +12,11 @@
   "license": "ISC",
   "devDependencies": {
     "@types/cookie": "^0.4.1",
-    "@types/express-ws": "^3.0.1",
     "@types/http-proxy": "^1.17.8",
     "@types/ioredis": "^4.28.5",
     "@types/newrelic": "^7.0.3",
     "@types/node": "^17.0.5",
+    "@types/parseurl": "^1.3.1",
     "@types/ws": "^8.2.2",
     "@typescript-eslint/eslint-plugin": "^5.8.1",
     "@typescript-eslint/parser": "^5.8.1",
@@ -32,13 +32,12 @@
   "dependencies": {
     "cookie": "^0.4.1",
     "dotenv": "^14.3.2",
-    "express": "^4.17.2",
-    "express-ws": "^5.0.2",
-    "http-proxy-middleware": "^2.0.1",
+    "http-proxy": "^1.18.1",
     "ioredis": "^4.28.3",
-    "kidsloop-live-state": "bitbucket:calmisland/kidsloop-live-state#1.2.0-rc2",
     "kidsloop-token-validation": "bitbucket:calmisland/kidsloop-token-validation",
     "newrelic": "^8.4.0",
+    "parseurl": "^1.3.3",
+    "path-to-regexp": "^6.2.0",
     "ws": "^8.4.2"
   },
   "config": {
