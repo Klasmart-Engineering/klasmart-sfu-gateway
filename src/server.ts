@@ -57,13 +57,12 @@ export class Server {
                 const params = match(pathname);
                 if (params) {
                     handler(params, socket, req, head);
-                    break;
+                    return;
                 }
             }
         }
 
         socket.end();
-        return;
     }
 }
 
