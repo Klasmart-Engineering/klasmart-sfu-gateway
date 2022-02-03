@@ -2,10 +2,11 @@ import { createServer, IncomingMessage, ServerResponse } from "http";
 import { pathToRegexp, Key } from "path-to-regexp";
 import parseUrl from "parseurl";
 import { Duplex } from "stream";
+import { Url } from "url";
 
 export type Params = Record<string, string | undefined>
-export type Handler = (params: Params, res: ServerResponse, req: IncomingMessage) => unknown
-export type WsHandler = (params: Params, socket: Duplex, req: IncomingMessage, head: Buffer) => unknown
+export type Handler = (params: Params, res: ServerResponse, req: IncomingMessage, url: Url) => unknown
+export type WsHandler = (params: Params, socket: Duplex, req: IncomingMessage, head: Buffer, url: Url) => unknown
 
 export type Route<T> = {
     match: (pathname: string) => Params | undefined,
@@ -33,36 +34,22 @@ export class Server {
 
     private getRoutes: Route<Handler>[] = [];
     private onRequest(req: IncomingMessage, res: ServerResponse) {
-        const pathname = parseUrl(req)?.pathname;
-        if (pathname && req.method === "GET") {
-            for (const { match, handler } of this.getRoutes) {
-                const params = match(pathname);
-                if (params) {
-                    handler(params, res, req);
-                    break;
-                }
-            }
-        }
+        const route = matchRoute(this.getRoutes, req);
+        
+        if(!route) { return errorResponse(res, 404); }
+        route.handler(route.params, res, req, route.url);
 
-        res.statusCode = 404;
-        res.end();
-        return;
+        if(!res.writableEnded) { return errorResponse(res, 500); }
+
+        return errorResponse(res, 404);
     }
 
     private wsRoutes: Route<WsHandler>[] = [];
     private onUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer) {
-        const pathname = parseUrl(req)?.pathname;
-        if (pathname) {
-            for (const { match, handler } of this.wsRoutes) {
-                const params = match(pathname);
-                if (params) {
-                    handler(params, socket, req, head);
-                    return;
-                }
-            }
-        }
+        const route = matchRoute(this.wsRoutes, req);
+        if(!route) { return socket.end(); }
 
-        socket.end();
+        route.handler(route.params, socket, req, head, route.url);
     }
 }
 
@@ -81,4 +68,21 @@ function createRoute<T>(pattern: string, handler: T): Route<T> {
     };
 }
 
+function matchRoute<T>(routes: Route<T>[], req: IncomingMessage) {
+    const url = parseUrl(req);
+    if(!url) { return; }
 
+    const pathname = url.pathname ?? undefined;
+    if (!pathname) { return; }
+
+    for (const { match, handler } of routes) {
+        const params = match(pathname);
+        if (params) { return { url, handler, params }; }
+    }
+}
+
+function errorResponse(res: ServerResponse, statusCode?: number, statusMessage?: string) {
+    if(statusCode !== undefined) { res.statusCode = statusCode; }
+    if(statusMessage !== undefined) { res.statusMessage = statusMessage; }
+    res.end();
+}
