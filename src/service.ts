@@ -61,8 +61,8 @@ export function createServer(registrar: RedisRegistrar) {
         const sfuAddress = await registrar.getSfuAddress(sfuId);
         if (!sfuAddress) { throw new Error(`sfu address not found for sfuId("${sfuId}")`); }
 
+        console.log(`Proxying to sfu(${sfuId}) at '${sfuAddress}' for [${req.socket.remoteFamily}](${req.socket.remoteAddress}:${req.socket.remotePort})`);
         const target = `ws://${sfuAddress}${req.url}`;
-        console.log(`Proxying to target(${target})`);
         proxy.ws(req, socket, head, { target, ignorePath: true });
     });
 
