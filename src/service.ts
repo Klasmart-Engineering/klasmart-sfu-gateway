@@ -48,6 +48,7 @@ export function createServer(registrar: RedisRegistrar) {
         } catch(e) {
             console.error(e);
             if(socket.writable) { socket.end(); }
+            if(socket.readable) { socket.destroy(); }
         }
     });
     
@@ -60,7 +61,7 @@ export function createServer(registrar: RedisRegistrar) {
         const sfuAddress = await registrar.getSfuAddress(sfuId);
         if (!sfuAddress) { throw new Error(`sfu address not found for sfuId("${sfuId}")`); }
 
-        const target = `ws://${sfuAddress}`;
+        const target = `ws://${sfuAddress}${req.url}`;
         console.log(`Proxying to target(${target})`);
         proxy.ws(req, socket, head, { target, ignorePath: true });
     });
