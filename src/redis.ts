@@ -1,4 +1,4 @@
-import { Cluster, Redis as IORedis } from "ioredis";
+import {Cluster, Redis as IORedis} from "ioredis";
 
 export type Type<T> = string & {
     /* This value does not exist during execution and is only used for type matching during compiletime */
@@ -33,44 +33,31 @@ export type TrackInfoEvent = {
 
 export type SfuStatus = {
     endpoint: string
-    producers?: number
-    consumers?: number
+    producers: number
+    consumers: number
     lastUpdateTimestamp?: number
 }
 
 export interface SfuRegistrar {
-    addSfuId(sfuId: SfuId): Promise<void>;
-    removeSfuId(sfuId: SfuId): Promise<void>;
     getSfuIds(): Promise<SfuId[]>;
-
     getSfuStatus(sfuId: SfuId): Promise<SfuStatus|undefined>;
-    setSfuStatus(sfuId: SfuId, status: SfuStatus): Promise<void>;
 }
 
 export interface TrackRegistrar {
-    addTrack(roomId: RoomId, track: TrackInfo): Promise<void>
-    removeTrack(roomId: RoomId, id: ProducerId): Promise<void>
     getTracks(roomId: RoomId): Promise<TrackInfo[]>
-
-    waitForTrackChanges(roomId: RoomId, cursor?: string): Promise<{cursor?: string, events?: TrackInfoEvent[]}> 
+    waitForTrackChanges(roomId: RoomId, cursor?: string): Promise<{cursor?: string, events?: TrackInfoEvent[]}>
 }
 
 export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
     public async getRandomSfuId() {
         const sfuIds = await this.getSfuIds();
         const randomIndex = Math.floor(Math.random()*sfuIds.length);
-        const sfuId = sfuIds[randomIndex];
-        return sfuId;
+        return sfuIds[randomIndex];
     }
 
     public async getSfuAddress(sfuId: SfuId) {
         const status = await this.getSfuStatus(sfuId);
         return status?.endpoint;
-    }
-
-    public async addSfuId(sfuId: SfuId, timestamp = Date.now()) {
-        const key = RedisRegistrar.keySfuIds();
-        await this.redis.zadd(key, "GT", timestamp, sfuId);
     }
 
     public async removeSfuId(sfuId: SfuId) {
@@ -80,11 +67,11 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
 
     public async getSfuIds() {
         const key = RedisRegistrar.keySfuIds();
-        
+
         const oldestTimestamp = Date.now() - 15 * 1000;
         const numberDeleted = await this.redis.zremrangebyscore(key, 0, oldestTimestamp);
         if (numberDeleted > 0) { console.info(`Deleted ${numberDeleted} outdated entries from '${key}'`); }
-        
+
         const list = await this.getSortedSet(key);
         return list.map(id => newSfuId(id));
     }
@@ -100,28 +87,13 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         return await this.getJsonEncoded<SfuStatus>(key);
     }
 
-    public async addTrack(roomId: RoomId, track: TrackInfo) {
-        const key = RedisRegistrar.keyRoomTracks(roomId);
-        const value = JSON.stringify(track);
-        const count = await this.redis.zadd(key, "GT", Date.now(), value);
-        if(typeof count !== "number" || count <= 0) { return; }
-        await this.publishTrackEvent(key, { add: track });
-    }
-
-    public async removeTrack(roomId: RoomId, id: ProducerId) {
-        const key = RedisRegistrar.keyRoomTracks(roomId);
-        const count = await this.redis.zrem(key, roomId);
-        if(typeof count !== "number" || count <= 0) { return; }
-        await this.publishTrackEvent(key, { remove: id });
-    }
-
     public async getTracks(roomId: RoomId) {
         const key = RedisRegistrar.keyRoomTracks(roomId);
-        
+
         const oldestTimestamp = Date.now() - 15 * 1000;
         const numberDeleted = await this.redis.zremrangebyscore(key, 0, oldestTimestamp);
         if (numberDeleted > 0) { console.info(`Deleted ${numberDeleted} outdated entries from '${key}'`); }
-        
+
         const list = await this.getSortedSet(key);
         console.log(list);
         return list.flatMap(track => JsonParse<TrackInfo>(track) || []);
@@ -132,13 +104,13 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         try {
             const key = RedisRegistrar.keyNotification(RedisRegistrar.keyRoomTracks(roomId));
             const readResult = await redis.xread("BLOCK", 10000, "STREAMS", key, cursor);
-    
+
             if (!readResult) { return { cursor }; }
-            
+
             const [ [ , streamItems ] ] = readResult;
             return {
                 cursor: streamItems[streamItems.length-1][0],
-                events: streamItems.flatMap(([,keyValues]) => 
+                events: streamItems.flatMap(([,keyValues]) =>
                     deserializeRedisStreamFieldValuePairs<TrackInfoEvent>(keyValues) ?? []
                 ),
             };
@@ -151,21 +123,16 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         private readonly redis: IORedis | Cluster
     ) {}
 
-    private async publishTrackEvent(key: string, event: TrackInfoEvent) {
-        const notificationKey = RedisRegistrar.keyNotification(key);
-        await this.redis.xadd(notificationKey, "MAXLEN", "~", 128, "*", "json", JSON.stringify(event));
-    }
-
-    private async setJsonEncoded<T=unknown>(key: string, value: T, timeout = 15) {
+    private async setJsonEncoded<T>(key: string, value: T, timeout = 15) {
         await this.redis.set(key, JSON.stringify(value), "EX", timeout);
     }
 
-    private async getJsonEncoded<T=unknown>(key: string) {
+    private async getJsonEncoded<T>(key: string) {
         try {
             const status = await this.redis.get(key);
             if(status) { return JSON.parse(status) as T; }
         } catch(e) {
-            console.error(e); 
+            console.error(e);
         }
         return;
     }
@@ -197,7 +164,7 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
     public static roomSfu (roomId: string) { return `room:${roomId}:sfu`; }
 }
 
-function deserializeRedisStreamFieldValuePairs<T=unknown>(fieldValues: string[]) {
+function deserializeRedisStreamFieldValuePairs<T>(fieldValues: string[]) {
     for(let i = 0; i+1 < fieldValues.length; i+=2) {
         if(fieldValues[i] !== "json") { continue; }
         const value = JsonParse<T>(fieldValues[i+1]);
@@ -206,7 +173,7 @@ function deserializeRedisStreamFieldValuePairs<T=unknown>(fieldValues: string[])
     return undefined;
 }
 
-function JsonParse<T=unknown>(serialized: string) {
+function JsonParse<T>(serialized: string) {
     try {
         return JSON.parse(serialized) as T;
     } catch(e) {
@@ -214,33 +181,3 @@ function JsonParse<T=unknown>(serialized: string) {
         return undefined;
     }
 }
-
-export const MockRegistrar = () => {
-    const sfuIds = new Set<SfuId>();
-    const statuses = new Map<SfuId, SfuStatus>();
-    const tracks = new Map<RoomId, Map<ProducerId, TrackInfo>>();
-    const trackMap = (roomId: RoomId) => {
-        let map = tracks.get(roomId);
-        if(!map) {
-            map = new Map<ProducerId, TrackInfo>();
-            tracks.set(roomId, map);
-        }
-        return map;
-    };
-
-    /* eslint-disable @typescript-eslint/no-empty-function */
-    return {
-        addSfuId: async (sfuId: SfuId) => { sfuIds.add(sfuId); },
-        removeSfuId: async (sfuId: SfuId) => { sfuIds.delete(sfuId); },
-        getSfuIds: async () => ([...sfuIds.values()]),
-    
-        getSfuStatus: async (sfuId: SfuId) => statuses.get(sfuId),
-        setSfuStatus: async (sfuId: SfuId, status: SfuStatus) => { statuses.set(sfuId, status); },
-
-        addTrack: async (roomId: RoomId, track: TrackInfo) => { trackMap(roomId).set(track.producerId, track);} ,
-        removeTrack: async (roomId: RoomId, id: ProducerId) => { trackMap(roomId).delete(id); },
-        getTracks: async (roomId: RoomId) => [ ...trackMap(roomId).values() ],
-        waitForTrackChanges: async () => ({cursor: "0"}), 
-    } as SfuRegistrar & TrackRegistrar;
-    /* eslint-enable @typescript-eslint/no-empty-function */
-};
