@@ -6,7 +6,8 @@ import dotenv from "dotenv";
 
 async function main() {
     try {
-        process.on("uncaughtException",  (err) => { console.log(err); }); 
+        dotenv.config();
+        process.on("uncaughtException",  (err) => { console.log(err); });
         //TODO: Cluster
         const redis = new Redis({
             host: process.env.REDIS_HOST,
@@ -17,10 +18,10 @@ async function main() {
         });
         await redis.connect();
         console.log("🔴 Redis database connected");
-    
+
         const registrar = new RedisRegistrar(redis);
         const app = createServer(registrar);
-    
+
         const port = Number(process.env.PORT) || 8002;
         await app.listen(port);
         console.log(`🌎 Server available on port ${port}`);

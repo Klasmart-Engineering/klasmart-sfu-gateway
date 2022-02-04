@@ -38,15 +38,16 @@ export type SfuStatus = {
     lastUpdateTimestamp?: number
 }
 
-export interface SfuRegistrar {
+export type SfuRegistrar =  {
     getSfuIds(): Promise<SfuId[]>;
     getSfuStatus(sfuId: SfuId): Promise<SfuStatus|undefined>;
-}
+    getRandomSfuId(): Promise<SfuId|undefined>;
+};
 
-export interface TrackRegistrar {
-    getTracks(roomId: RoomId): Promise<TrackInfo[]>
-    waitForTrackChanges(roomId: RoomId, cursor?: string): Promise<{cursor?: string, events?: TrackInfoEvent[]}>
-}
+export type TrackRegistrar = {
+    getTracks(roomId: RoomId): Promise<TrackInfo[]>;
+    waitForTrackChanges(roomId: RoomId, cursor?: string): Promise<{cursor?: string, events?: TrackInfoEvent[]}>;
+};
 
 export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
     public async getRandomSfuId() {
@@ -60,26 +61,11 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         return status?.endpoint;
     }
 
-    public async removeSfuId(sfuId: SfuId) {
-        const key = RedisRegistrar.keySfuIds();
-        await this.redis.zrem(key, sfuId);
-    }
-
     public async getSfuIds() {
         const key = RedisRegistrar.keySfuIds();
-
-        const oldestTimestamp = Date.now() - 15 * 1000;
-        const numberDeleted = await this.redis.zremrangebyscore(key, 0, oldestTimestamp);
-        if (numberDeleted > 0) { console.info(`Deleted ${numberDeleted} outdated entries from '${key}'`); }
-
+        await this.removeOldEntries(key);
         const list = await this.getSortedSet(key);
         return list.map(id => newSfuId(id));
-    }
-
-    public async setSfuStatus(sfuId: SfuId, status: SfuStatus) {
-        status.lastUpdateTimestamp = Date.now();
-        const key = RedisRegistrar.keySfuStatus(sfuId);
-        await this.setJsonEncoded(key, status);
     }
 
     public async getSfuStatus(sfuId: SfuId) {
@@ -123,10 +109,6 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         private readonly redis: IORedis | Cluster
     ) {}
 
-    private async setJsonEncoded<T>(key: string, value: T, timeout = 15) {
-        await this.redis.set(key, JSON.stringify(value), "EX", timeout);
-    }
-
     private async getJsonEncoded<T>(key: string) {
         try {
             const status = await this.redis.get(key);
@@ -161,6 +143,16 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         return address;
     }
 
+    private async removeOldEntries(key: string, probability = 0.1) {
+        if (!roll(probability)) {
+            return;
+        }
+
+        const oldestTimestamp = Date.now() - 15 * 1000;
+        const numberDeleted = await this.redis.zremrangebyscore(key, 0, oldestTimestamp);
+        if (numberDeleted > 0) { console.info(`Deleted ${numberDeleted} outdated entries from '${key}'`); }
+    }
+
     public static roomSfu (roomId: string) { return `room:${roomId}:sfu`; }
 }
 
@@ -170,7 +162,6 @@ function deserializeRedisStreamFieldValuePairs<T>(fieldValues: string[]) {
         const value = JsonParse<T>(fieldValues[i+1]);
         if(value !== undefined) { return value; }
     }
-    return undefined;
 }
 
 function JsonParse<T>(serialized: string) {
@@ -178,6 +169,10 @@ function JsonParse<T>(serialized: string) {
         return JSON.parse(serialized) as T;
     } catch(e) {
         console.error(`Failed to deserialize value: ${e}`);
-        return undefined;
     }
+}
+
+function roll(probability: number): boolean {
+    const roll = Math.random();
+    return roll < probability;
 }
