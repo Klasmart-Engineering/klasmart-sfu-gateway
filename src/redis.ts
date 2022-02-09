@@ -1,4 +1,5 @@
 import {Cluster, Redis as IORedis} from "ioredis";
+import {MAX_SFU_LOAD} from "./service";
 
 export type Type<T> = string & {
     /* This value does not exist during execution and is only used for type matching during compiletime */
@@ -40,8 +41,8 @@ export type SfuStatus = {
 
 export type SfuRegistrar =  {
     getSfuIds(): Promise<SfuId[]>;
-    getSfuStatus(sfuId: SfuId): Promise<SfuStatus|undefined>;
-    getRandomSfuId(): Promise<SfuId|undefined>;
+    getSfuStatus(sfuId: SfuId): Promise<SfuStatus>;
+    getAvailableSfu(newLoad: number): Promise<SfuId>;
 };
 
 export type TrackRegistrar = {
@@ -50,8 +51,23 @@ export type TrackRegistrar = {
 };
 
 export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
-    public async getRandomSfuId() {
+    // Gets an SFU which has the capacity to handle the new load. If no SFU can fully handle the new load, return the SFU with the least load.
+    public async getAvailableSfu(newLoad: number) {
         const sfuIds = await this.getSfuIds();
+        const sfuStatuses = await Promise.all(sfuIds.map(async sfuId => {
+            return {id: sfuId, status: await this.getSfuStatus(sfuId) };
+        }));
+
+        if (sfuStatuses.length === 0) {
+            throw new Error("No SFU available");
+        }
+        const availableSfus = sfuStatuses.filter(sfu => MAX_SFU_LOAD - (sfu.status.producers + sfu.status.consumers) > newLoad);
+
+        if (availableSfus.length > 0) {
+            const randomIndex = Math.floor(Math.random()*availableSfus.length);
+            return availableSfus[randomIndex].id;
+        }
+
         const randomIndex = Math.floor(Math.random()*sfuIds.length);
         return sfuIds[randomIndex];
     }
@@ -70,7 +86,11 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
 
     public async getSfuStatus(sfuId: SfuId) {
         const key = RedisRegistrar.keySfuStatus(sfuId);
-        return await this.getJsonEncoded<SfuStatus>(key);
+        const status = await this.getJsonEncoded<SfuStatus>(key);
+        if (!status) {
+            throw new Error(`SFU ${sfuId} not found`);
+        }
+        return status;
     }
 
     public async getTracks(roomId: RoomId) {

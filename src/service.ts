@@ -3,9 +3,17 @@ import { WebSocketServer, WebSocket } from "ws";
 import { handleAuth } from "./auth";
 import { newSfuId, RedisRegistrar, SfuId, TrackInfo, TrackInfoEvent } from "./redis";
 import { Server } from "./server";
+import {newOrgId, newScheduleId, OrgId, ScheduleId, Scheduler} from "./scheduler";
+
+export const MAX_SFU_LOAD = Number(process.env.MAX_SFU_LOAD) ?? 500;
 
 export function createServer(registrar: RedisRegistrar) {
     const server = new Server();
+    if (!process.env.CMS_ENDPOINT) {
+        throw new Error("CMS_ENDPOINT environment variable must be set");
+    }
+    const cmsEndpoint = process.env.CMS_ENDPOINT;
+    const scheduler = new Scheduler(cmsEndpoint);
 
     server.get("/server-health", (req, res) => {
         res.statusCode = 200;
@@ -17,16 +25,13 @@ export function createServer(registrar: RedisRegistrar) {
 
     server.ws("/room", async (params, socket, req, head, url) => {
         try {
-            const { roomId } = await handleAuth(req, url);
-            if (!roomId) { throw new Error("No room RoomId"); }
-    
-            const ws = await new Promise<WebSocket>(resolve => wss.handleUpgrade(req, socket, head, resolve)); 
-            // ws.addEventListener("message", (e) => console.log(e));
-    
+            const { roomId, orgId, scheduleId, authCookie } = await handleAuth(req, url);
+            const ws = await new Promise<WebSocket>(resolve => wss.handleUpgrade(req, socket, head, resolve));
+
             let currentCursor = `${Date.now()}`;
             {
                 const tracks = await registrar.getTracks(roomId);
-                const sfuId = await selectSfu(registrar, tracks);
+                const sfuId = await selectSfu(registrar, tracks, scheduler, scheduleId, orgId, authCookie);
                 const initialEvents = [
                     { sfuId },
                     ...tracks.map<TrackInfoEvent>(add => ({ add })),
@@ -34,7 +39,7 @@ export function createServer(registrar: RedisRegistrar) {
                 console.log(initialEvents);
                 ws.send(JSON.stringify(initialEvents));
             }
-    
+
             while (ws.readyState === WebSocket.OPEN) {
                 const { cursor, events } = await registrar.waitForTrackChanges(roomId, currentCursor);
                 if (events) { ws.send(JSON.stringify(events)); }
@@ -46,7 +51,7 @@ export function createServer(registrar: RedisRegistrar) {
             if(socket.readable) { socket.destroy(); }
         }
     });
-    
+
     const proxy = httpProxy.createProxyServer({});
 
     server.ws("/sfuid/:sfuId", async (params, socket, req, head) => {
@@ -82,12 +87,32 @@ export function createServer(registrar: RedisRegistrar) {
     return server;
 }
 
-async function selectSfu(registrar: RedisRegistrar, tracks: TrackInfo[]) {
-    const ids = tracks.reduce((ids, track) => ids.add(track.sfuId), new Set<SfuId>());
-    let randomIndex = 1 + Math.floor(ids.size * Math.random());
-    for (const id of ids) {
-        if (randomIndex <= 0) { return id; }
-        randomIndex--;
+async function selectSfu(registrar: RedisRegistrar, tracks: TrackInfo[], scheduler: Scheduler, scheduleId: ScheduleId, orgId: OrgId, cookie: string) {
+    const roster = await scheduler.getSchedule(scheduleId, orgId, cookie);
+    const numStudents = roster.class_roster_students.length;
+    const numTeachers = roster.class_roster_teachers.length;
+    const sfuIds = tracks.reduce((ids, track) => ids.add(track.sfuId), new Set<SfuId>());
+    // It would be ideal to have the user id attached to the track in redis, but until that is implemented we'll assume
+    // the remaining tracks is close to 3 * teachers + 2 * students - tracks.length
+    const potentialNewTracks  = 3 * numTeachers + 3 * numStudents - tracks.length;
+    const potentialNewConsumers = potentialNewTracks * (numStudents + numTeachers);
+    const potentialNewLoad = potentialNewTracks + potentialNewConsumers;
+
+    // Of the SFUs serving this room, see if one can handle the remaining load.
+    let lowestLoadSfuId;
+    let lowestLoad = Infinity;
+    for (const id of sfuIds) {
+        if (!lowestLoadSfuId) { lowestLoadSfuId = id; }
+        const { consumers, producers} = await registrar.getSfuStatus(id);
+        const load = consumers + producers;
+        if (load < lowestLoad && MAX_SFU_LOAD - load > potentialNewLoad) {
+            lowestLoad = load;
+            lowestLoadSfuId = id;
+        }
     }
-    return await registrar.getRandomSfuId();
+    if (lowestLoadSfuId) {
+        return lowestLoadSfuId;
+    }
+    // Otherwise, look for an SFU that can handle the remaining load.
+    return await registrar.getAvailableSfu(potentialNewLoad);
 }
