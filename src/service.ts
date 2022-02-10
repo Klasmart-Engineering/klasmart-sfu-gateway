@@ -101,9 +101,14 @@ async function selectSfu(registrar: RedisRegistrar, tracks: TrackInfo[], schedul
     // Of the SFUs serving this room, see if one can handle the remaining load.
     let lowestLoadSfuId;
     let lowestLoad = Infinity;
-    for (const id of sfuIds) {
+    const sfuStatuses = await Promise.all(Array.from(sfuIds).map(async sfuId => {
+        return {id: sfuId, status: await registrar.getSfuStatus(sfuId) };
+    }));
+
+    for (const sfuStatus of sfuStatuses) {
+        const { id, status} = sfuStatus;
+        const { consumers, producers } = status;
         if (!lowestLoadSfuId) { lowestLoadSfuId = id; }
-        const { consumers, producers} = await registrar.getSfuStatus(id);
         const load = consumers + producers;
         if (load < lowestLoad && MAX_SFU_LOAD - load > potentialNewLoad) {
             lowestLoad = load;
