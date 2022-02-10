@@ -61,6 +61,12 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         if (sfuStatuses.length === 0) {
             throw new Error("No SFU available");
         }
+
+        // newLoad is too high for any single SFU to handle, so only consider SFUs that can handle an additional track.
+        if (newLoad > MAX_SFU_LOAD) {
+            newLoad = 3;
+        }
+
         const availableSfus = sfuStatuses.filter(sfu => MAX_SFU_LOAD - (sfu.status.producers + sfu.status.consumers) > newLoad);
 
         if (availableSfus.length > 0) {
@@ -68,8 +74,7 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
             return availableSfus[randomIndex].id;
         }
 
-        const randomIndex = Math.floor(Math.random()*sfuIds.length);
-        return sfuIds[randomIndex];
+        throw new Error("No SFU available");
     }
 
     public async getSfuAddress(sfuId: SfuId) {

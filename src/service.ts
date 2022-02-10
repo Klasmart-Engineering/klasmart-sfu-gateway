@@ -96,21 +96,30 @@ async function selectSfu(registrar: RedisRegistrar, tracks: TrackInfo[], schedul
     // the remaining tracks is close to 3 * teachers + 2 * students - tracks.length
     const potentialNewTracks  = 3 * numTeachers + 3 * numStudents - tracks.length;
     const potentialNewConsumers = potentialNewTracks * (numStudents + numTeachers);
-    const potentialNewLoad = potentialNewTracks + potentialNewConsumers;
+    let potentialNewLoad = potentialNewTracks + potentialNewConsumers;
 
     // Of the SFUs serving this room, see if one can handle the remaining load.
     let lowestLoadSfuId;
     let lowestLoad = Infinity;
-    const sfuStatuses = await Promise.all(Array.from(sfuIds).map(async sfuId => {
+    let sfuStatuses = await Promise.all(Array.from(sfuIds).map(async sfuId => {
         return {id: sfuId, status: await registrar.getSfuStatus(sfuId) };
     }));
 
+    // If the potential new load is greater than what a single SFU can support, just consider the SFU with the lowest load.
+    // This will result in filling up an SFU until the remaining work can be fit on another SFU.
+    if (potentialNewLoad >= MAX_SFU_LOAD) {
+        potentialNewLoad = 3;
+    }
+
+    sfuStatuses = sfuStatuses.filter(sfuStatus => MAX_SFU_LOAD - (sfuStatus.status.producers + sfuStatus.status.consumers) >= potentialNewLoad);
+
+    // Select the SFU with the lowest load.
     for (const sfuStatus of sfuStatuses) {
         const { id, status} = sfuStatus;
         const { consumers, producers } = status;
         if (!lowestLoadSfuId) { lowestLoadSfuId = id; }
         const load = consumers + producers;
-        if (load < lowestLoad && MAX_SFU_LOAD - load > potentialNewLoad) {
+        if (load < lowestLoad && load + potentialNewLoad <= MAX_SFU_LOAD) {
             lowestLoad = load;
             lowestLoadSfuId = id;
         }
