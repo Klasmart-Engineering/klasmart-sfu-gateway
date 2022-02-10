@@ -36,6 +36,23 @@ export class Scheduler {
     }
 
     private async getUpdatedSchedule(scheduleId: ScheduleId, orgId: OrgId, cookie: string): Promise<Roster> {
+        if (process.env.DISABLE_AUTH) {
+            return {
+                class_roster_students: [
+                    {id: "1", name: "Student 1", type: "student", enable: true},
+                    {id: "2", name: "Student 2", type: "student", enable: true},
+                    {id: "3", name: "Student 3", type: "student", enable: true},
+                    {id: "4", name: "Student 4", type: "student", enable: true},
+                    {id: "5", name: "Student 5", type: "student", enable: true},
+                ],
+                class_roster_teachers: [
+                    {id: "1", name: "Teacher 1", type: "teacher", enable: true},
+                    {id: "2", name: "Teacher 2", type: "teacher", enable: true},
+                    {id: "3", name: "Teacher 3", type: "teacher", enable: true},
+                ]
+            };
+        }
+
         const url = `${this.cmsEndpoint}/v1/schedules/${scheduleId}?orgId=${orgId}`;
         const headers = new Headers();
         headers.append("Accept", "application/json");
