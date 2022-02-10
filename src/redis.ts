@@ -133,8 +133,10 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         try {
             const status = await this.redis.get(key);
             if(status) { return JSON.parse(status) as T; }
+            return;
         } catch(e) {
             console.error(e);
+            return;
         }
     }
 
@@ -181,6 +183,7 @@ function deserializeRedisStreamFieldValuePairs<T>(fieldValues: string[]) {
         const value = JsonParse<T>(fieldValues[i+1]);
         if(value !== undefined) { return value; }
     }
+    return;
 }
 
 function JsonParse<T>(serialized: string) {
@@ -188,6 +191,7 @@ function JsonParse<T>(serialized: string) {
         return JSON.parse(serialized) as T;
     } catch(e) {
         console.error(`Failed to deserialize value: ${e}`);
+        return;
     }
 }
 

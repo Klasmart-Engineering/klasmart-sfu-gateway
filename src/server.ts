@@ -35,7 +35,7 @@ export class Server {
     private getRoutes: Route<Handler>[] = [];
     private onRequest(req: IncomingMessage, res: ServerResponse) {
         const route = matchRoute(this.getRoutes, req);
-        
+
         if(!route) { return errorResponse(res, 404); }
         route.handler(route.params, res, req, route.url);
 
@@ -50,6 +50,7 @@ export class Server {
         if(!route) { return socket.end(); }
 
         route.handler(route.params, socket, req, head, route.url);
+        return;
     }
 }
 
@@ -79,6 +80,7 @@ function matchRoute<T>(routes: Route<T>[], req: IncomingMessage) {
         const params = match(pathname);
         if (params) { return { url, handler, params }; }
     }
+    return;
 }
 
 function errorResponse(res: ServerResponse, statusCode?: number, statusMessage?: string) {

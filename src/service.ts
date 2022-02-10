@@ -15,7 +15,7 @@ export function createServer(registrar: RedisRegistrar) {
     const cmsEndpoint = process.env.CMS_ENDPOINT;
     const scheduler = new Scheduler(cmsEndpoint);
 
-    server.get("/server-health", (req, res) => {
+    server.get("/server-health", (_req, res) => {
         res.statusCode = 200;
         res.statusMessage = "Ok";
         res.end();
@@ -23,7 +23,7 @@ export function createServer(registrar: RedisRegistrar) {
 
     const wss = new WebSocketServer({noServer: true});
 
-    server.ws("/room", async (params, socket, req, head, url) => {
+    server.ws("/room", async (_params, socket, req, head, url) => {
         try {
             const { roomId, orgId, scheduleId, authCookie } = await handleAuth(req, url);
             const ws = await new Promise<WebSocket>(resolve => wss.handleUpgrade(req, socket, head, resolve));
