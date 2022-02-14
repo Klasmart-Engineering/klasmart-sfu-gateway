@@ -32,17 +32,17 @@ export async function handleAuth(req: IncomingMessage, url = parseUrl(req)) {
 }
 
 const getAuthenticationJwt = (req: IncomingMessage, url?: Url) => {
+    if(url && process.env.NODE_ENV?.toLowerCase().startsWith("dev")) {
+        const authentication =  getFromUrl(url, "authentication");
+        if(authentication) { return authentication; }
+    }
+
     if (req.headers.cookie) {
         const cookies = cookie.parse(req.headers.cookie);
         const authentication = cookies.access;
-        if(authentication) {return authentication; }
+        if(authentication) { return authentication; }
     }
 
-    if(url && process.env.NODE_ENV?.toLowerCase().startsWith("dev")) {
-        const authentication =  getFromUrl(url, "authentication");
-        if(authentication) {return authentication;}    
-    }
-    
     throw new Error("No authentication");
 };
 
