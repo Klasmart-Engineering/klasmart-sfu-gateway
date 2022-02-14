@@ -3,7 +3,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { handleAuth } from "./auth";
 import { newSfuId, RedisRegistrar, SfuId, TrackInfo, TrackInfoEvent } from "./redis";
 import { Server } from "./server";
-import {newOrgId, newScheduleId, OrgId, ScheduleId, Scheduler} from "./scheduler";
+import { OrgId, ScheduleId, Scheduler} from "./scheduler";
 
 export const MAX_SFU_LOAD = Number(process.env.MAX_SFU_LOAD) ?? 500;
 

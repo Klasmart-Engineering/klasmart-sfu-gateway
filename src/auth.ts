@@ -4,6 +4,7 @@ import { checkAuthenticationToken, checkLiveAuthorizationToken } from "kidsloop-
 import parseUrl from "parseurl";
 import { Url } from "url";
 import { newRoomId } from "./redis";
+import {newOrgId, newScheduleId} from "./scheduler";
 
 export async function handleAuth(req: IncomingMessage, url = parseUrl(req)) {
     if (process.env.DISABLE_AUTH) {
@@ -11,7 +12,10 @@ export async function handleAuth(req: IncomingMessage, url = parseUrl(req)) {
         return {
             userId: debugUserId(),
             roomId: newRoomId("test-room"),
-            isTeacher: true
+            isTeacher: true,
+            orgId: newOrgId("test-org"),
+            scheduleId: newScheduleId("test-schedule"),
+            authCookie: ""
         };
     }
 
@@ -24,10 +28,21 @@ export async function handleAuth(req: IncomingMessage, url = parseUrl(req)) {
         throw new Error("Authentication and Authorization tokens are not for the same user");
     }
 
+    if (!authorizationToken.org_id) {
+        throw new Error("Authorization token does not have an org_id");
+    }
+
+    if (!authorizationToken.schedule_id) {
+        throw new Error("Authorization token does not have a schedule_id");
+    }
+
     return {
         userId: authorizationToken.userid,
         roomId: newRoomId(authorizationToken.roomid),
-        isTeacher: authorizationToken.teacher || false,
+        isTeacher: authorizationToken.teacher ?? false,
+        orgId: newOrgId(authorizationToken.org_id),
+        scheduleId: newScheduleId(authorizationToken.schedule_id),
+        authCookie: authentication
     };
 }
 
@@ -50,7 +65,7 @@ const getAuthorizationJwt = (_req: IncomingMessage, url?: Url) => {
     if(url) {
         const authorization =  getFromUrl(url, "authorization");
         if(authorization) { return authorization; }
-        
+
     }
     throw new Error("No authorization; no authorization query param");
 };
