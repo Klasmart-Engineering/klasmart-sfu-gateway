@@ -43,6 +43,7 @@ export type SfuRegistrar =  {
     getSfuIds(): Promise<SfuId[]>;
     getSfuStatus(sfuId: SfuId): Promise<SfuStatus>;
     getAvailableSfu(newLoad: number): Promise<SfuId>;
+    getRandomSfuId(): Promise<SfuId>;
 };
 
 export type TrackRegistrar = {
@@ -80,6 +81,12 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
     public async getSfuAddress(sfuId: SfuId) {
         const status = await this.getSfuStatus(sfuId);
         return status?.endpoint;
+    }
+
+    public async getRandomSfuId() {
+        const sfuIds = await this.getSfuIds();
+        const randomIndex = Math.floor(Math.random()*sfuIds.length);
+        return sfuIds[randomIndex];
     }
 
     public async getSfuIds() {

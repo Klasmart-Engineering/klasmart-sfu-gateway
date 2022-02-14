@@ -23,7 +23,7 @@ export function createServer(registrar: RedisRegistrar) {
 
     const wss = new WebSocketServer({noServer: true});
 
-    server.ws("/room", async (_params, socket, req, head, url) => {
+    server.ws("/room", async (params, socket, req, head, url) => {
         try {
             const { roomId, orgId, scheduleId, authCookie } = await handleAuth(req, url);
             const ws = await new Promise<WebSocket>(resolve => wss.handleUpgrade(req, socket, head, resolve));
@@ -31,7 +31,15 @@ export function createServer(registrar: RedisRegistrar) {
             let currentCursor = `${Date.now()}`;
             {
                 const tracks = await registrar.getTracks(roomId);
-                const sfuId = await selectSfu(registrar, tracks, scheduler, scheduleId, orgId, authCookie);
+                let sfuId: SfuId;
+                switch (params.selectionStrategy) {
+                case "random":
+                    sfuId = await selectRandomSfu(registrar, tracks);
+                    break;
+                default:
+                    sfuId = await selectLoadBalancedSfu(registrar, tracks, scheduler, scheduleId, orgId, authCookie);
+                }
+
                 const initialEvents = [
                     { sfuId },
                     ...tracks.map<TrackInfoEvent>(add => ({ add })),
@@ -87,7 +95,7 @@ export function createServer(registrar: RedisRegistrar) {
     return server;
 }
 
-async function selectSfu(registrar: RedisRegistrar, tracks: TrackInfo[], scheduler: Scheduler, scheduleId: ScheduleId, orgId: OrgId, cookie: string) {
+async function selectLoadBalancedSfu(registrar: RedisRegistrar, tracks: TrackInfo[], scheduler: Scheduler, scheduleId: ScheduleId, orgId: OrgId, cookie: string) {
     const roster = await scheduler.getSchedule(scheduleId, orgId, cookie);
     const numStudents = roster.class_roster_students.length;
     const numTeachers = roster.class_roster_teachers.length;
@@ -129,4 +137,14 @@ async function selectSfu(registrar: RedisRegistrar, tracks: TrackInfo[], schedul
     }
     // Otherwise, look for an SFU that can handle the remaining load.
     return await registrar.getAvailableSfu(potentialNewLoad);
+}
+
+async function selectRandomSfu(registrar: RedisRegistrar, tracks: TrackInfo[]) {
+    const ids = tracks.reduce((ids, track) => ids.add(track.sfuId), new Set<SfuId>());
+    let randomIndex = 1 + Math.floor(ids.size * Math.random());
+    for (const id of ids) {
+        if (randomIndex <= 0) { return id; }
+        randomIndex--;
+    }
+    return await registrar.getRandomSfuId();
 }
