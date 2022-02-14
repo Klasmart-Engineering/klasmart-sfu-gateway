@@ -1,13 +1,8 @@
-import cookie from "cookie";
-import { IncomingMessage } from "http";
 import httpProxy from "http-proxy";
-import { checkAuthenticationToken, checkLiveAuthorizationToken } from "kidsloop-token-validation";
-import { Url, URLSearchParams } from "url";
 import { WebSocketServer, WebSocket } from "ws";
-
-import { newRoomId, newSfuId, newUserId, RedisRegistrar, SfuId, TrackInfo, TrackInfoEvent } from "./redis";
+import { handleAuth } from "./auth";
+import { newSfuId, RedisRegistrar, SfuId, TrackInfo, TrackInfoEvent } from "./redis";
 import { Server } from "./server";
-
 
 export function createServer(registrar: RedisRegistrar) {
     const server = new Server();
@@ -96,58 +91,3 @@ async function selectSfu(registrar: RedisRegistrar, tracks: TrackInfo[]) {
     }
     return await registrar.getRandomSfuId();
 }
-
-
-async function handleAuth(req: IncomingMessage, url: Url) {
-    if (process.env.DISABLE_AUTH) {
-        console.warn("RUNNING IN DEBUG MODE - SKIPPING AUTHENTICATION AND AUTHORIZATION");
-        return {
-            userId: debugUserId(),
-            roomId: newRoomId("test-room"),
-            isTeacher: true,
-        };
-    }
-
-    const authentication = getAuthenticationJwt(req); 
-    const authorization = getAuthorizationJwt(url); 
-
-    const authenticationToken = await checkAuthenticationToken(authentication);
-    const authorizationToken = await checkLiveAuthorizationToken(authorization);
-    if (authorizationToken.userid !== authenticationToken.id) {
-        throw new Error("Authentication and Authorization tokens are not for the same user");
-    }
-
-    return {
-        userId: newUserId(authorizationToken.userid),
-        roomId: newRoomId(authorizationToken.roomid),
-        isTeacher: authorizationToken.teacher || false,
-    };
-}
-
-const getAuthenticationJwt = (req: IncomingMessage) => {
-    if (!req.headers.cookie) { throw new Error("No authentication; no cookies"); }
-    const cookies = cookie.parse(req.headers.cookie);
-
-    const access = cookies.access;
-    if (!access) { throw new Error("No authentication; no access cookie"); }
-    return access;
-};
-
-const getAuthorizationJwt = (url: Url) => {
-    if(!url.query) { throw new Error("No authorization; no query params"); }
-    if(typeof url.query === "string") { 
-        const queryParams = new URLSearchParams(url.query);
-        const authorization = queryParams.get("authorization");
-        if (!authorization) { throw new Error("No authorization; no authorization query param"); }
-        return authorization;
-    } else {
-        const authorization = url.query["authorization"] instanceof Array ? url.query["authorization"][0] : url.query["authorization"];
-        if (!authorization) { throw new Error("No authorization; no authorization query param"); }
-        return authorization;
-    }
-    
-};
-
-
-let _debugUserCount = 0;
-function debugUserId() { return newUserId(`debugUser${_debugUserCount++}`); }
