@@ -61,6 +61,11 @@ export class Scheduler {
             responseType: "json",
             responseEncoding: "utf8",
             maxRedirects: 5,
+            transformResponse: [
+                (data: string) => {
+                    return JSON.parse(data) as Roster;
+                }
+            ]
         };
         const axios = new Axios(config);
         const response = await axios.get<Roster>(url);
