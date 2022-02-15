@@ -68,6 +68,18 @@ export class Scheduler {
         if (!response.status || response.status !== 200) {
             throw new Error(`Failed to get schedule ${scheduleId} for org ${orgId}: ${response.status} : ${response.statusText}: Access Cookie: ${cookie}`);
         }
-        return response.data;
+
+        const roster = response.data;
+
+        if (!roster) {
+            throw new Error(`Failed to get schedule ${scheduleId} for org ${orgId}: No data: ${JSON.stringify(response)}`);
+        }
+        if (roster.class_roster_students === undefined) {
+            throw new Error(`Failed to get schedule ${scheduleId} for org ${orgId}: No students: ${JSON.stringify(roster)}`);
+        }
+        if (roster.class_roster_teachers === undefined) {
+            throw new Error(`Failed to get schedule ${scheduleId} for org ${orgId}: No teachers: ${JSON.stringify(roster)}`);
+        }
+        return roster;
     }
 }
