@@ -63,7 +63,7 @@ export class Scheduler {
             method: "GET",
         });
         if (!response.ok) {
-            throw new Error(`Failed to get schedule ${scheduleId} for org ${orgId}`);
+            throw new Error(`Failed to get schedule ${scheduleId} for org ${orgId}: ${response.status} : ${response.statusText}`);
         }
         return await response.json() as Roster;
     }
