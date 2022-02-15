@@ -1,6 +1,6 @@
 import LRUCache from "lru-cache";
 import {Type} from "./redis";
-import fetch, {Headers} from "node-fetch";
+import {Axios, AxiosRequestConfig} from "axios";
 
 export type ScheduleId = Type<"ScheduleId">;
 export const newScheduleId = (id: string) => id as ScheduleId;
@@ -53,18 +53,18 @@ export class Scheduler {
             };
         }
 
-        const url = `${this.cmsEndpoint}/v1/schedules/${scheduleId}?orgId=${orgId}`;
-        const headers = new Headers();
-        headers.append("Accept", "application/json");
-        headers.append("Content-Type", "application/json");
-        headers.append("Cookie", `access=${cookie}`);
-        const response = await fetch(url, {
-            headers,
-            method: "GET",
-        });
-        if (!response.ok) {
+        const url = `${this.cmsEndpoint}/v1/schedules/${scheduleId}?org_id=${orgId}`;
+        const config: AxiosRequestConfig<Roster> = {
+            headers: {
+                "set-cookie": `access=${cookie}`
+            }
+        };
+        const axios = new Axios(config);
+        const response = await axios.get<Roster>(url);
+
+        if (!response.status || response.status !== 200) {
             throw new Error(`Failed to get schedule ${scheduleId} for org ${orgId}: ${response.status} : ${response.statusText}`);
         }
-        return await response.json() as Roster;
+        return response.data;
     }
 }
