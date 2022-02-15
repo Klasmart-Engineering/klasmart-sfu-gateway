@@ -60,7 +60,7 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         }));
 
         if (sfuStatuses.length === 0) {
-            throw new Error("No SFU available");
+            throw new Error("No SFUs are reporting statuses");
         }
 
         // newLoad is too high for any single SFU to handle, so only consider SFUs that can handle an additional track.
@@ -75,7 +75,7 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
             return availableSfus[randomIndex].id;
         }
 
-        throw new Error("No SFU available");
+        throw new Error("No SFU available that can handle more load");
     }
 
     public async getSfuAddress(sfuId: SfuId) {
