@@ -54,10 +54,13 @@ export class Scheduler {
         }
 
         const url = `${this.cmsEndpoint}/v1/schedules/${scheduleId}?org_id=${orgId}`;
-        const config: AxiosRequestConfig<Roster> = {
+        const config: AxiosRequestConfig = {
             headers: {
                 "set-cookie": `access=${cookie}`
-            }
+            },
+            responseType: "json",
+            responseEncoding: "utf8",
+            maxRedirects: 5,
         };
         const axios = new Axios(config);
         const response = await axios.get<Roster>(url);
