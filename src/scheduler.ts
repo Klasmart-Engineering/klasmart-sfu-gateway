@@ -57,7 +57,7 @@ export class Scheduler {
         const headers = new Headers();
         headers.append("Accept", "application/json");
         headers.append("Content-Type", "application/json");
-        headers.append("Set-Cookie", cookie);
+        headers.append("Cookie", `access=${cookie}`);
         const response = await fetch(url, {
             headers,
             method: "GET",
