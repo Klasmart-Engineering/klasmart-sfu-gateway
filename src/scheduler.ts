@@ -56,7 +56,7 @@ export class Scheduler {
         const url = `${this.cmsEndpoint}/v1/schedules/${scheduleId}?org_id=${orgId}`;
         const config: AxiosRequestConfig = {
             headers: {
-                "set-cookie": `access=${cookie}`
+                "Cookie": `access=${cookie}`
             },
             responseType: "json",
             responseEncoding: "utf8",
@@ -66,7 +66,7 @@ export class Scheduler {
         const response = await axios.get<Roster>(url);
 
         if (!response.status || response.status !== 200) {
-            throw new Error(`Failed to get schedule ${scheduleId} for org ${orgId}: ${response.status} : ${response.statusText}`);
+            throw new Error(`Failed to get schedule ${scheduleId} for org ${orgId}: ${response.status} : ${response.statusText}: Access Cookie: ${cookie}`);
         }
         return response.data;
     }
