@@ -71,7 +71,7 @@ const getAuthorizationJwt = (_req: IncomingMessage, url?: Url) => {
 };
 
 
-function getFromUrl(url: Url, key: string) {
+export function getFromUrl(url: Url, key: string) {
     if (!url.query) { return; }
     if (typeof url.query === "string") {
         const queryParams = new URLSearchParams(url.query);

@@ -1,9 +1,10 @@
 import httpProxy from "http-proxy";
 import { WebSocketServer, WebSocket } from "ws";
-import { handleAuth } from "./auth";
+import { getFromUrl, handleAuth } from "./auth";
 import { newSfuId, RedisRegistrar, SfuId, TrackInfo, TrackInfoEvent } from "./redis";
 import { Server } from "./server";
 import { OrgId, ScheduleId, Scheduler} from "./scheduler";
+import { Url } from "url";
 
 export const MAX_SFU_LOAD = Number(process.env.MAX_SFU_LOAD) ?? 500;
 
@@ -23,28 +24,15 @@ export function createServer(registrar: RedisRegistrar) {
 
     const wss = new WebSocketServer({noServer: true});
 
-    server.ws("/room", async (_params, socket, req, head, url) => {
+    server.ws("/room", async (params, socket, req, head, url) => {
         try {
             const { roomId, orgId, scheduleId, authCookie } = await handleAuth(req, url);
             const ws = await new Promise<WebSocket>(resolve => wss.handleUpgrade(req, socket, head, resolve));
-            let selectionStrategy = "";
-            if (req.url) {
-                const url = new URL(req.url, `wss://${req.headers.host}`);
-                selectionStrategy = url.searchParams.get("selectionStrategy") ?? "";
-            }
 
             let currentCursor = `${Date.now()}`;
             {
                 const tracks = await registrar.getTracks(roomId);
-                let sfuId: SfuId;
-                switch (selectionStrategy) {
-                case "random":
-                    sfuId = await selectRandomSfu(registrar, tracks);
-                    break;
-                default:
-                    sfuId = await selectLoadBalancedSfu(registrar, tracks, scheduler, scheduleId, orgId, authCookie);
-                }
-
+                const sfuId = selectSfu(url, registrar, tracks, scheduler, scheduleId, orgId, authCookie);
                 const initialEvents = [
                     { sfuId },
                     ...tracks.map<TrackInfoEvent>(add => ({ add })),
@@ -99,6 +87,33 @@ export function createServer(registrar: RedisRegistrar) {
 
     return server;
 }
+
+async function selectSfu(
+    url: Url,
+    registrar: RedisRegistrar,
+    tracks: TrackInfo[],
+    scheduler: Scheduler,
+    scheduleId: ScheduleId,
+    orgId: OrgId,
+    cookie: string,
+) {
+    try {
+        const selectionStrategy = getFromUrl(url, "selectionStrategy") ?? "random";
+        switch (selectionStrategy) {
+        case "random":
+            return await selectRandomSfu(registrar, tracks);
+        case "fromSchedule":
+            return await selectLoadBalancedSfu(registrar, tracks, scheduler, scheduleId, orgId, cookie);
+        default:
+            console.warn(`Could not find selectionStrategy(${selectionStrategy}), using default`);
+            return await selectLoadBalancedSfu(registrar, tracks, scheduler, scheduleId, orgId, cookie);
+        }
+    } catch(e) {
+        console.error(e);
+        return;
+    }
+}
+
 
 async function selectLoadBalancedSfu(registrar: RedisRegistrar, tracks: TrackInfo[], scheduler: Scheduler, scheduleId: ScheduleId, orgId: OrgId, cookie: string) {
     const roster = await scheduler.getSchedule(scheduleId, orgId, cookie);
