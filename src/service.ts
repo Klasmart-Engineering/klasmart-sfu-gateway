@@ -24,7 +24,7 @@ export function createServer(registrar: RedisRegistrar) {
 
     const wss = new WebSocketServer({noServer: true});
 
-    server.ws("/room", async (params, socket, req, head, url) => {
+    server.ws("/room", async (_params, socket, req, head, url) => {
         try {
             const { roomId, orgId, scheduleId, authCookie } = await handleAuth(req, url);
             const ws = await new Promise<WebSocket>(resolve => wss.handleUpgrade(req, socket, head, resolve));
