@@ -68,7 +68,9 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
             newLoad = 3;
         }
 
-        const availableSfus = sfuStatuses.filter(sfu => MAX_SFU_LOAD - (sfu.status.producers + sfu.status.consumers) > newLoad);
+        console.log(`sfuStatuses: ${JSON.stringify(sfuStatuses)}`);
+        console.log(`newLoad: ${newLoad}`);
+        const availableSfus = sfuStatuses.filter(sfu => MAX_SFU_LOAD - sfu.status.producers - sfu.status.consumers >= newLoad);
 
         if (availableSfus.length > 0) {
             const randomIndex = Math.floor(Math.random()*availableSfus.length);
