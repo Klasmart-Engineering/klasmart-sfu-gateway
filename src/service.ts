@@ -32,7 +32,7 @@ export function createServer(registrar: RedisRegistrar) {
             let currentCursor = `${Date.now()}`;
             {
                 const tracks = await registrar.getTracks(roomId);
-                const sfuId = selectSfu(url, registrar, tracks, scheduler, scheduleId, orgId, authCookie);
+                const sfuId = await selectSfu(url, registrar, tracks, scheduler, scheduleId, orgId, authCookie);
                 const initialEvents = [
                     { sfuId },
                     ...tracks.map<TrackInfoEvent>(add => ({ add })),
