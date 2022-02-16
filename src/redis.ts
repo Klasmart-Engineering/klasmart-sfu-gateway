@@ -1,5 +1,5 @@
 import {Cluster, Redis as IORedis} from "ioredis";
-import {MAX_SFU_LOAD} from "./service";
+import {getEnvNumber, MAX_SFU_LOAD} from "./service";
 
 export type Type<T> = string & {
     /* This value does not exist during execution and is only used for type matching during compiletime */
@@ -179,7 +179,10 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         return address;
     }
 
-    private async removeOldEntries(key: string, probability = 1) {
+    private async removeOldEntries(key: string, probability?: number) {
+        if (!probability) {
+            probability = getEnvNumber(process.env.REMOVE_OLD_ENTRIES_PROBABILITY, 10000) / 10000;
+        }
         if (!roll(probability)) {
             return;
         }
