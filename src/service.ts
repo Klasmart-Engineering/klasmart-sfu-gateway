@@ -6,7 +6,18 @@ import { Server } from "./server";
 import { OrgId, ScheduleId, Scheduler} from "./scheduler";
 import { Url } from "url";
 
-export const MAX_SFU_LOAD = Number(process.env.MAX_SFU_LOAD) ?? 500;
+export const MAX_SFU_LOAD = getEnvNumber(process.env.MAX_SFU_LOAD, 500);
+
+export function getEnvNumber(envVar: string | undefined, defaultValue: number): number {
+    if (envVar) {
+        const parsedInt = parseInt(envVar);
+        if (!isNaN(parsedInt)) {
+            return parsedInt;
+        }
+    }
+    console.warn(`Invalid value for ${envVar}, using default value ${defaultValue}`);
+    return defaultValue;
+}
 
 export function createServer(registrar: RedisRegistrar) {
     const server = new Server();
