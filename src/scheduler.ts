@@ -13,7 +13,11 @@ type Roster = {
     class_roster_students: {id: string, name: string, type: string, enable: boolean}[];
 };
 
-export class Scheduler {
+export type IScheduler = {
+    getSchedule(scheduleId: ScheduleId, orgId: OrgId, cookie: string): Promise<Roster>;
+}
+
+export class Scheduler implements IScheduler {
     public constructor(
         private readonly cmsEndpoint: string,
         private cache: LRUCache<string, Roster> = new LRUCache( {
@@ -36,23 +40,6 @@ export class Scheduler {
     }
 
     private async getUpdatedSchedule(scheduleId: ScheduleId, orgId: OrgId, cookie: string): Promise<Roster> {
-        if (process.env.DISABLE_AUTH) {
-            return {
-                class_roster_students: [
-                    {id: "1", name: "Student 1", type: "student", enable: true},
-                    {id: "2", name: "Student 2", type: "student", enable: true},
-                    {id: "3", name: "Student 3", type: "student", enable: true},
-                    {id: "4", name: "Student 4", type: "student", enable: true},
-                    {id: "5", name: "Student 5", type: "student", enable: true},
-                ],
-                class_roster_teachers: [
-                    {id: "1", name: "Teacher 1", type: "teacher", enable: true},
-                    {id: "2", name: "Teacher 2", type: "teacher", enable: true},
-                    {id: "3", name: "Teacher 3", type: "teacher", enable: true},
-                ]
-            };
-        }
-
         const url = `${this.cmsEndpoint}/v1/schedules/${scheduleId}?org_id=${orgId}`;
         const config: AxiosRequestConfig = {
             headers: {
@@ -86,5 +73,34 @@ export class Scheduler {
             throw new Error(`Failed to get schedule ${scheduleId} for org ${orgId}: No teachers: ${JSON.stringify(roster)}`);
         }
         return roster;
+    }
+}
+
+export class MockScheduler implements IScheduler {
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    public constructor(private readonly numStudents: number, private readonly numTeachers: number) {}
+    public async getSchedule(_scheduleId: ScheduleId, _orgId: OrgId, _cookie: string): Promise<Roster> {
+        const students = [];
+        for (let i = 0; i < this.numStudents; i++) {
+            students.push({
+                id: `student-${i}`,
+                name: `Student ${i}`,
+                type: "student",
+                enable: true
+            });
+        }
+        const teachers = [];
+        for (let i = 0; i < this.numTeachers; i++) {
+            teachers.push({
+                id: `teacher-${i}`,
+                name: `Teacher ${i}`,
+                type: "teacher",
+                enable: true
+            });
+        }
+        return {
+            class_roster_students: students,
+            class_roster_teachers: teachers
+        };
     }
 }

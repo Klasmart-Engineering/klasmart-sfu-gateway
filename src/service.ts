@@ -3,7 +3,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { getFromUrl, handleAuth } from "./auth";
 import { newSfuId, RedisRegistrar, SfuId, TrackInfo, TrackInfoEvent } from "./redis";
 import { Server } from "./server";
-import { OrgId, ScheduleId, Scheduler} from "./scheduler";
+import {IScheduler, MockScheduler, OrgId, ScheduleId, Scheduler} from "./scheduler";
 import { Url } from "url";
 
 export const MAX_SFU_LOAD = getEnvNumber(process.env.MAX_SFU_LOAD, 500);
@@ -25,7 +25,14 @@ export function createServer(registrar: RedisRegistrar) {
         throw new Error("CMS_ENDPOINT environment variable must be set");
     }
     const cmsEndpoint = process.env.CMS_ENDPOINT;
-    const scheduler = new Scheduler(cmsEndpoint);
+    let scheduler: IScheduler;
+    if (process.env.DISABLE_AUTH) {
+        const numStudents = getEnvNumber(process.env.NUM_SCHEDULED_STUDENTS, 50);
+        const numTeachers = getEnvNumber(process.env.NUM_SCHEDULED_TEACHERS, 3);
+        scheduler = new MockScheduler(numStudents, numTeachers);
+    } else {
+        scheduler = new Scheduler(cmsEndpoint);
+    }
 
     server.get("/server-health", (_req, res) => {
         res.statusCode = 200;
@@ -103,7 +110,7 @@ async function selectSfu(
     url: Url,
     registrar: RedisRegistrar,
     tracks: TrackInfo[],
-    scheduler: Scheduler,
+    scheduler: IScheduler,
     scheduleId: ScheduleId,
     orgId: OrgId,
     cookie: string,
@@ -126,10 +133,11 @@ async function selectSfu(
 }
 
 
-async function selectLoadBalancedSfu(registrar: RedisRegistrar, tracks: TrackInfo[], scheduler: Scheduler, scheduleId: ScheduleId, orgId: OrgId, cookie: string) {
+async function selectLoadBalancedSfu(registrar: RedisRegistrar, tracks: TrackInfo[], scheduler: IScheduler, scheduleId: ScheduleId, orgId: OrgId, cookie: string) {
     const roster = await scheduler.getSchedule(scheduleId, orgId, cookie);
     const numStudents = roster.class_roster_students.length;
     const numTeachers = roster.class_roster_teachers.length;
+    console.log(`numStudents: ${numStudents}, numTeachers: ${numTeachers}`);
     const sfuIds = tracks.reduce((ids, track) => ids.add(track.sfuId), new Set<SfuId>());
     // It would be ideal to have the user id attached to the track in redis, but until that is implemented we'll assume
     // the remaining tracks is close to 3 * teachers + 2 * students - tracks.length

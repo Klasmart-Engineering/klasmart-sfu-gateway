@@ -55,9 +55,10 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
     // Gets an SFU which has the capacity to handle the new load. If no SFU can fully handle the new load, return the SFU with the least load.
     public async getAvailableSfu(newLoad: number) {
         const sfuIds = await this.getSfuIds();
-        const sfuStatuses = await Promise.all(sfuIds.map(async sfuId => {
+        const sfuStatuses = (await Promise.allSettled(sfuIds.map(async sfuId => {
             return {id: sfuId, status: await this.getSfuStatus(sfuId) };
-        }));
+        })))
+            .flatMap((result) => result.status === "fulfilled" ? result.value : []);
 
         if (sfuStatuses.length === 0) {
             throw new Error("No SFUs are reporting statuses");
@@ -178,7 +179,7 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         return address;
     }
 
-    private async removeOldEntries(key: string, probability = 0.1) {
+    private async removeOldEntries(key: string, probability = 1) {
         if (!roll(probability)) {
             return;
         }
