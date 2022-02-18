@@ -46,7 +46,6 @@ export function createServer(registrar: RedisRegistrar) {
         try {
             const { roomId, orgId, scheduleId, authCookie } = await handleAuth(req, url);
             const ws = await new Promise<WebSocket>(resolve => wss.handleUpgrade(req, socket, head, resolve));
-
             let currentCursor = `${Date.now()}`;
             {
                 const tracks = await registrar.getTracks(roomId);
@@ -116,7 +115,7 @@ async function selectSfu(
     cookie: string,
 ) {
     try {
-        const selectionStrategy = getFromUrl(url, "selectionStrategy") ?? "random";
+        const selectionStrategy = getFromUrl(url, "selectionStrategy") ?? "fromSchedule";
         switch (selectionStrategy) {
         case "random":
             return await selectRandomSfu(registrar, tracks);
