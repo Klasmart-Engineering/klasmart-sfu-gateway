@@ -1,5 +1,6 @@
 import {Cluster, Redis as IORedis} from "ioredis";
-import {getEnvNumber, MAX_SFU_LOAD} from "./service";
+import { MAX_SFU_LOAD } from "./selectSfu";
+import { getEnvNumber } from "./service";
 
 export type Type<T> = string & {
     /* This value does not exist during execution and is only used for type matching during compiletime */
