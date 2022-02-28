@@ -106,9 +106,10 @@ export function createServer(registrar: RedisRegistrar) {
 async function onMessage(message: RawData, registrar: RedisRegistrar, url: Url, scheduler: IScheduler, scheduleId: ScheduleId, orgId: OrgId, authCookie: string, roomId: RoomId, ws: WebSocket) {
     // In future this could (should?) be expanded to handle multiple request types
     try {
+        if (message.toString().length === 0) return;
         const request = parse(message);
         const tracks = await registrar.getTracks(roomId);
-        const sfuId = await selectSfu(url, registrar, tracks, scheduler, scheduleId, orgId, authCookie, request.excludeId);
+        const sfuId = await selectSfu(url, registrar, tracks, scheduler, scheduleId, orgId, authCookie, request?.excludeId);
         ws.send(JSON.stringify([{ sfuId }]));
     } catch (e) {
         console.error(e);
@@ -118,7 +119,11 @@ async function onMessage(message: RawData, registrar: RedisRegistrar, url: Url, 
 }
 
 function parse(message: RawData) {
-    return JSON.parse(message.toString()) as ClientRequest;
+    const request = message.toString();
+    if (request.length > 0) {
+        return JSON.parse(message.toString()) as ClientRequest;
+    }
+    return undefined;
 }
 
 export type ClientRequest = {
