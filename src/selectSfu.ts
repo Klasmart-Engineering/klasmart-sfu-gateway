@@ -15,17 +15,18 @@ export async function selectSfu(
     scheduleId: ScheduleId,
     orgId: OrgId,
     cookie: string,
+    excludeId?: SfuId
 ) {
     try {
         const selectionStrategy = getFromUrl(url, "selectionStrategy") ?? "fromSchedule";
         switch (selectionStrategy) {
         case "random":
-            return await selectRandomSfu(registrar, tracks);
+            return await selectRandomSfu(registrar, tracks, excludeId);
         case "fromSchedule":
-            return await selectLoadBalancedSfu(registrar, tracks, scheduler, scheduleId, orgId, cookie);
+            return await selectLoadBalancedSfu(registrar, tracks, scheduler, scheduleId, orgId, cookie, excludeId);
         default:
             console.warn(`Could not find selectionStrategy(${selectionStrategy}), using default`);
-            return await selectLoadBalancedSfu(registrar, tracks, scheduler, scheduleId, orgId, cookie);
+            return await selectLoadBalancedSfu(registrar, tracks, scheduler, scheduleId, orgId, cookie, excludeId);
         }
     } catch(e) {
         console.error(e);
@@ -34,12 +35,12 @@ export async function selectSfu(
 }
 
 
-async function selectLoadBalancedSfu(registrar: RedisRegistrar, tracks: TrackInfo[], scheduler: IScheduler, scheduleId: ScheduleId, orgId: OrgId, cookie: string) {
+async function selectLoadBalancedSfu(registrar: RedisRegistrar, tracks: TrackInfo[], scheduler: IScheduler, scheduleId: ScheduleId, orgId: OrgId, cookie: string, excludeId?: SfuId) {
     const roster = await scheduler.getSchedule(scheduleId, orgId, cookie);
     const numStudents = roster.class_roster_students.length;
     const numTeachers = roster.class_roster_teachers.length;
     console.log(`numStudents: ${numStudents}, numTeachers: ${numTeachers}`);
-    const sfuIds = tracks.reduce((ids, track) => ids.add(track.sfuId), new Set<SfuId>());
+    const sfuIds = tracks.filter(t => t.sfuId !== excludeId).reduce((ids, track) => ids.add(track.sfuId), new Set<SfuId>());
     // It would be ideal to have the user id attached to the track in redis, but until that is implemented we'll assume
     // the remaining tracks is close to 3 * teachers + 2 * students - tracks.length
     const potentialNewTracks  = 3 * numTeachers + 3 * numStudents - tracks.length;
@@ -79,8 +80,8 @@ async function selectLoadBalancedSfu(registrar: RedisRegistrar, tracks: TrackInf
     return await registrar.getAvailableSfu(potentialNewLoad);
 }
 
-async function selectRandomSfu(registrar: RedisRegistrar, tracks: TrackInfo[]) {
-    const ids = tracks.reduce((ids, track) => ids.add(track.sfuId), new Set<SfuId>());
+async function selectRandomSfu(registrar: RedisRegistrar, tracks: TrackInfo[], excludeId?: SfuId) {
+    const ids = tracks.filter(t => t.sfuId !== excludeId).reduce((ids, track) => ids.add(track.sfuId), new Set<SfuId>());
     let randomIndex = 1 + Math.floor(ids.size * Math.random());
     for (const id of ids) {
         if (randomIndex <= 0) { return id; }

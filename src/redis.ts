@@ -43,7 +43,7 @@ export type SfuStatus = {
 export type SfuRegistrar =  {
     getSfuIds(): Promise<SfuId[]>;
     getSfuStatus(sfuId: SfuId): Promise<SfuStatus>;
-    getAvailableSfu(newLoad: number): Promise<SfuId>;
+    getAvailableSfu(newLoad: number, excludeId?: SfuId): Promise<SfuId>;
     getRandomSfuId(): Promise<SfuId>;
 };
 
@@ -54,8 +54,8 @@ export type TrackRegistrar = {
 
 export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
     // Gets an SFU which has the capacity to handle the new load. If no SFU can fully handle the new load, return the SFU with the least load.
-    public async getAvailableSfu(newLoad: number) {
-        const sfuIds = await this.getSfuIds();
+    public async getAvailableSfu(newLoad: number, excludeId?: SfuId) {
+        const sfuIds = (await this.getSfuIds()).filter(sfuId => sfuId !== excludeId);
         const sfuStatuses = (await Promise.allSettled(sfuIds.map(async sfuId => {
             return {id: sfuId, status: await this.getSfuStatus(sfuId) };
         })))

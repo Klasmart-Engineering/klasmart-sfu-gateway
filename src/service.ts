@@ -1,10 +1,11 @@
 import httpProxy from "http-proxy";
-import { WebSocketServer, WebSocket } from "ws";
-import { handleAuth } from "./auth";
-import { newSfuId, RedisRegistrar, TrackInfoEvent } from "./redis";
-import { Server } from "./server";
-import {IScheduler, MockScheduler, Scheduler} from "./scheduler";
-import { selectSfu } from "./selectSfu";
+import {RawData, WebSocket, WebSocketServer} from "ws";
+import {handleAuth} from "./auth";
+import {newSfuId, RedisRegistrar, RoomId, SfuId, TrackInfoEvent} from "./redis";
+import {Server} from "./server";
+import {IScheduler, MockScheduler, OrgId, ScheduleId, Scheduler} from "./scheduler";
+import {selectSfu} from "./selectSfu";
+import {Url} from "url";
 
 export function getEnvNumber(envVar: string | undefined, defaultValue: number): number {
     if (envVar) {
@@ -45,12 +46,7 @@ export function createServer(registrar: RedisRegistrar) {
             const { roomId, orgId, scheduleId, authCookie } = await handleAuth(req, url);
             const ws = await new Promise<WebSocket>(resolve => wss.handleUpgrade(req, socket, head, resolve));
             let currentCursor = `${Date.now()}`;
-            ws.on("message", async () => {
-                // In future this could (should?) be expanded to handle multiple request types 
-                const tracks = await registrar.getTracks(roomId);
-                const sfuId = await selectSfu(url, registrar, tracks, scheduler, scheduleId, orgId, authCookie);
-                ws.send(JSON.stringify([{ sfuId }]));
-            });
+            ws.on("message", (m) => onMessage(m, registrar, url, scheduler, scheduleId, orgId, authCookie, roomId, ws));
             {
                 const tracks = await registrar.getTracks(roomId);
                 const initialEvents = [
@@ -105,4 +101,26 @@ export function createServer(registrar: RedisRegistrar) {
     });
 
     return server;
+}
+
+async function onMessage(message: RawData, registrar: RedisRegistrar, url: Url, scheduler: IScheduler, scheduleId: ScheduleId, orgId: OrgId, authCookie: string, roomId: RoomId, ws: WebSocket) {
+    // In future this could (should?) be expanded to handle multiple request types
+    try {
+        const request = parse(message);
+        const tracks = await registrar.getTracks(roomId);
+        const sfuId = await selectSfu(url, registrar, tracks, scheduler, scheduleId, orgId, authCookie, request.excludeId);
+        ws.send(JSON.stringify([{ sfuId }]));
+    } catch (e) {
+        console.error(e);
+        const error = <Error> e;
+        ws.send(JSON.stringify({ error: error.message }));
+    }
+}
+
+function parse(message: RawData) {
+    return JSON.parse(message.toString()) as ClientRequest;
+}
+
+export type ClientRequest = {
+    excludeId?: SfuId
 }
