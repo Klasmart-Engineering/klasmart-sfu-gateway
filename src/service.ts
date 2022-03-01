@@ -110,7 +110,11 @@ async function onMessage(message: RawData, registrar: RedisRegistrar, url: Url, 
         const request = parse(message);
         const tracks = await registrar.getTracks(roomId);
         const sfuId = await selectSfu(url, registrar, tracks, scheduler, scheduleId, orgId, authCookie, request?.excludeId);
+        const trackEvents = [
+            ...tracks.map<TrackInfoEvent>(add => ({ add })),
+        ];
         ws.send(JSON.stringify([{ sfuId }]));
+        ws.send(JSON.stringify(trackEvents));
     } catch (e) {
         console.error(e);
         const error = <Error> e;

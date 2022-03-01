@@ -79,7 +79,8 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
             return availableSfus[randomIndex].id;
         }
 
-        throw new Error("No SFU available that can handle more load");
+        // Fallback to random SFU
+        return await this.getRandomSfuId();
     }
 
     public async getSfuAddress(sfuId: SfuId) {
@@ -94,10 +95,15 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
     }
 
     public async getSfuIds() {
-        const key = RedisRegistrar.keySfuIds();
-        await this.removeOldEntries(key);
-        const list = await this.getSortedSet(key);
-        return list.map(id => newSfuId(id));
+        try {
+            const key = RedisRegistrar.keySfuIds();
+            await this.removeOldEntries(key);
+            const list = await this.getSortedSet(key);
+            return list.map(id => newSfuId(id));
+        } catch (e) {
+            console.error(e);
+            return [];
+        }
     }
 
     public async getSfuStatus(sfuId: SfuId) {
@@ -110,15 +116,21 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
     }
 
     public async getTracks(roomId: RoomId) {
-        const key = RedisRegistrar.keyRoomTracks(roomId);
+        try {
+            const key = RedisRegistrar.keyRoomTracks(roomId);
 
-        const oldestTimestamp = Date.now() - 15 * 1000;
-        const numberDeleted = await this.redis.zremrangebyscore(key, 0, oldestTimestamp);
-        if (numberDeleted > 0) { console.info(`Deleted ${numberDeleted} outdated entries from '${key}'`); }
+            const oldestTimestamp = Date.now() - 15 * 1000;
+            const numberDeleted = await this.redis.zremrangebyscore(key, 0, oldestTimestamp);
+            if (numberDeleted > 0) { console.info(`Deleted ${numberDeleted} outdated entries from '${key}'`); }
 
-        const list = await this.getSortedSet(key);
-        console.log(list);
-        return list.flatMap(track => JsonParse<TrackInfo>(track) || []);
+            const list = await this.getSortedSet(key);
+            console.log(list);
+            return list.flatMap(track => JsonParse<TrackInfo>(track) || []);
+        } catch (e) {
+            console.error(e);
+            return [];
+        }
+
     }
 
     public async waitForTrackChanges(roomId: RoomId, cursor="0") {
@@ -143,7 +155,20 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
 
     public constructor(
         private readonly redis: IORedis | Cluster
-    ) {}
+    ) {
+        redis.addListener("error", (err) => {
+            console.error(err);
+        });
+        redis.addListener("reconnecting", (err) => {
+            console.log(err);
+        });
+        redis.addListener("end", () => {
+            console.log("Redis connection ended");
+        });
+        redis.addListener("close", () => {
+            console.log("Redis connection closed");
+        });
+    }
 
     private async getJsonEncoded<T>(key: string) {
         try {

@@ -1,5 +1,5 @@
 import "newrelic";
-import { RedisRegistrar } from "./redis";
+import {RedisRegistrar} from "./redis";
 import Redis, {Cluster, Redis as IORedis} from "ioredis";
 import {createServer, getEnvNumber} from "./service";
 import dotenv from "dotenv";
@@ -26,8 +26,18 @@ async function main() {
             {
                 lazyConnect,
                 redisOptions: {
-                    password
-                }
+                    password,
+                    showFriendlyErrorStack: true,
+                    reconnectOnError: () => true,
+
+                },
+                clusterRetryStrategy(times: number): number {
+                    return Math.min(100 + times * 2, 2000);
+                },
+                retryDelayOnClusterDown: 2000,
+                slotsRefreshInterval: 2000,
+                slotsRefreshTimeout: 5000,
+
             });
         } else {
             redis = new Redis({
@@ -35,7 +45,9 @@ async function main() {
                 port: redisPort,
                 password,
                 lazyConnect: true,
-                reconnectOnError: (err) => err.message.includes("READONLY"),
+                reconnectOnError: () => true,
+                retryStrategy: (times: number) => Math.min(times * 50, 2000),
+                showFriendlyErrorStack: true,
             });
         }
         await redis.connect();
