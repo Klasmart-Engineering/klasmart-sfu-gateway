@@ -40,19 +40,43 @@ export type SfuStatus = {
     lastUpdateTimestamp?: number
 };
 
-export type SfuRegistrar =  {
+export type SfuRegistrar = {
     getSfuIds(): Promise<SfuId[]>;
     getSfuStatus(sfuId: SfuId): Promise<SfuStatus>;
     getAvailableSfu(newLoad: number, excludeId?: SfuId): Promise<SfuId>;
-    getRandomSfuId(): Promise<SfuId>;
+    getRandomSfuId(excludeId?: SfuId): Promise<SfuId>;
 };
+
+export async function selectSfuFromLoad(newLoad: number, sfuStatuses: {id: SfuId, status: SfuStatus}[], excludeId?: SfuId) {
+    if (sfuStatuses.length === 0) {
+        throw new Error("No SFUs are reporting statuses");
+    }
+
+    // newLoad is too high for any single SFU to handle, so only consider SFUs that can handle an additional track.
+    if (newLoad > MAX_SFU_LOAD) {
+        newLoad = 3;
+    }
+
+    console.log(`sfuStatuses: ${JSON.stringify(sfuStatuses)}`);
+    console.log(`newLoad: ${newLoad}`);
+    const availableSfus = sfuStatuses.filter(sfu => MAX_SFU_LOAD - sfu.status.producers - sfu.status.consumers >= newLoad).filter(sfu => sfu.id !== excludeId);
+
+    if (availableSfus.length > 0) {
+        const randomIndex = Math.floor(Math.random()*availableSfus.length);
+        return availableSfus[randomIndex].id;
+    }
+
+    return;
+}
 
 export type TrackRegistrar = {
     getTracks(roomId: RoomId): Promise<TrackInfo[]>;
     waitForTrackChanges(roomId: RoomId, cursor?: string): Promise<{cursor?: string, events?: TrackInfoEvent[]}>;
 };
 
-export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
+export type Registrar = SfuRegistrar & TrackRegistrar;
+
+export class RedisRegistrar implements Registrar {
     // Gets an SFU which has the capacity to handle the new load. If no SFU can fully handle the new load, return the SFU with the least load.
     public async getAvailableSfu(newLoad: number, excludeId?: SfuId) {
         const sfuIds = (await this.getSfuIds()).filter(sfuId => sfuId !== excludeId);
@@ -61,26 +85,11 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         })))
             .flatMap((result) => result.status === "fulfilled" ? result.value : []);
 
-        if (sfuStatuses.length === 0) {
-            throw new Error("No SFUs are reporting statuses");
+        const id = await selectSfuFromLoad(newLoad, sfuStatuses, excludeId);
+        if (id) {
+            return id;
         }
-
-        // newLoad is too high for any single SFU to handle, so only consider SFUs that can handle an additional track.
-        if (newLoad > MAX_SFU_LOAD) {
-            newLoad = 3;
-        }
-
-        console.log(`sfuStatuses: ${JSON.stringify(sfuStatuses)}`);
-        console.log(`newLoad: ${newLoad}`);
-        const availableSfus = sfuStatuses.filter(sfu => MAX_SFU_LOAD - sfu.status.producers - sfu.status.consumers >= newLoad);
-
-        if (availableSfus.length > 0) {
-            const randomIndex = Math.floor(Math.random()*availableSfus.length);
-            return availableSfus[randomIndex].id;
-        }
-
-        // Fallback to random SFU
-        return await this.getRandomSfuId();
+        return await this.getRandomSfuId(excludeId);
     }
 
     public async getSfuAddress(sfuId: SfuId) {
@@ -88,22 +97,25 @@ export class RedisRegistrar implements SfuRegistrar, TrackRegistrar {
         return status?.endpoint;
     }
 
-    public async getRandomSfuId() {
-        const sfuIds = await this.getSfuIds();
+    public async getRandomSfuId(excludeId?: SfuId) {
+        const sfuIds = await this.getSfuIds(excludeId);
         const randomIndex = Math.floor(Math.random()*sfuIds.length);
         return sfuIds[randomIndex];
     }
 
-    public async getSfuIds() {
-        try {
-            const key = RedisRegistrar.keySfuIds();
-            await this.removeOldEntries(key);
-            const list = await this.getSortedSet(key);
-            return list.map(id => newSfuId(id));
-        } catch (e) {
-            console.error(e);
-            return [];
+    public async getSfuIds(excludeId?: SfuId) {
+        const key = RedisRegistrar.keySfuIds();
+        await this.removeOldEntries(key);
+        const list = await this.getSortedSet(key);
+        const ids = list.map(id => newSfuId(id));
+        // Don't strictly filter out the excludeId in case there are no other sfus available.
+        if (ids.length > 1) {
+            return ids.filter(id => id !== excludeId);
+        } else if (ids.length === 0) {
+            throw new Error("No SFUs are registered");
         }
+        console.log(`Cannot exclude SFU ${excludeId} because there are no other SFUs available`);
+        return ids;
     }
 
     public async getSfuStatus(sfuId: SfuId) {

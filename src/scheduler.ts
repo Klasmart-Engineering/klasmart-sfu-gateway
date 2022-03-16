@@ -66,11 +66,11 @@ export class Scheduler implements IScheduler {
         if (!roster) {
             throw new Error(`Failed to get schedule ${scheduleId} for org ${orgId}: No data: ${JSON.stringify(response)}`);
         }
-        if (roster.class_roster_students === undefined) {
-            throw new Error(`Failed to get schedule ${scheduleId} for org ${orgId}: No students: ${JSON.stringify(roster)}`);
+        if (roster.class_roster_students === undefined || roster.class_roster_students === null) {
+            roster.class_roster_students = [];
         }
-        if (roster.class_roster_teachers === undefined) {
-            throw new Error(`Failed to get schedule ${scheduleId} for org ${orgId}: No teachers: ${JSON.stringify(roster)}`);
+        if (roster.class_roster_teachers === undefined || roster.class_roster_teachers === null) {
+            roster.class_roster_teachers = [];
         }
         return roster;
     }
@@ -78,8 +78,13 @@ export class Scheduler implements IScheduler {
 
 export class MockScheduler implements IScheduler {
     // eslint-disable-next-line @typescript-eslint/no-empty-function
+    private rosters = new Map<ScheduleId, Roster>();
     public constructor(private readonly numStudents: number, private readonly numTeachers: number) {}
-    public async getSchedule(_scheduleId: ScheduleId, _orgId: OrgId, _cookie: string): Promise<Roster> {
+    public async getSchedule(scheduleId: ScheduleId, _orgId: OrgId, _cookie: string): Promise<Roster> {
+        const roster = this.rosters.get(scheduleId);
+        if (roster) {
+            return roster;
+        }
         const students = [];
         for (let i = 0; i < this.numStudents; i++) {
             students.push({
@@ -102,5 +107,8 @@ export class MockScheduler implements IScheduler {
             class_roster_students: students,
             class_roster_teachers: teachers
         };
+    }
+    public setRoster(scheduleId: ScheduleId, roster: Roster) {
+        this.rosters.set(scheduleId, roster);
     }
 }

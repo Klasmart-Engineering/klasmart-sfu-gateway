@@ -37,7 +37,6 @@ async function main() {
                 retryDelayOnClusterDown: 2000,
                 slotsRefreshInterval: 2000,
                 slotsRefreshTimeout: 5000,
-
             });
         } else {
             redis = new Redis({

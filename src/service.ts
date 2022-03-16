@@ -48,12 +48,20 @@ export function createServer(registrar: RedisRegistrar) {
             let currentCursor = `${Date.now()}`;
             ws.on("message", (m) => onMessage(m, registrar, url, scheduler, scheduleId, orgId, authCookie, roomId, ws));
             {
-                const tracks = await registrar.getTracks(roomId);
-                const initialEvents = [
-                    ...tracks.map<TrackInfoEvent>(add => ({ add })),
-                ];
-                console.log(initialEvents);
-                ws.send(JSON.stringify(initialEvents));
+                try {
+                    const tracks = await registrar.getTracks(roomId);
+                    const sfuId = await selectSfu(url, registrar, tracks, scheduler, scheduleId, orgId, authCookie);
+                    console.log(`Sending sfuId(${sfuId})`);
+                    const trackEvents = [
+                        ...tracks.map<TrackInfoEvent>(add => ({ add })),
+                    ];
+                    ws.send(JSON.stringify([{ sfuId }]));
+                    ws.send(JSON.stringify(trackEvents));
+                } catch (e) {
+                    console.error(e);
+                    const error = <Error> e;
+                    ws.send(JSON.stringify([{ error: error.message }]));
+                }
             }
 
             while (ws.readyState === WebSocket.OPEN) {
@@ -110,13 +118,14 @@ async function onMessage(message: RawData, registrar: RedisRegistrar, url: Url, 
         const request = parse(message);
         const tracks = await registrar.getTracks(roomId);
         const sfuId = await selectSfu(url, registrar, tracks, scheduler, scheduleId, orgId, authCookie, request?.excludeId);
+        console.log(`Sending sfuId(${sfuId})`);
         const trackEvents = [
             ...tracks.map<TrackInfoEvent>(add => ({ add })),
         ];
         ws.send(JSON.stringify([{ sfuId }]));
         ws.send(JSON.stringify(trackEvents));
     } catch (e) {
-        console.error(e);
+        console.error(`Error: ${e}`);
         const error = <Error> e;
         ws.send(JSON.stringify({ error: error.message }));
     }
@@ -127,7 +136,7 @@ function parse(message: RawData) {
     if (request.length > 0) {
         return JSON.parse(message.toString()) as ClientRequest;
     }
-    return undefined;
+    return;
 }
 
 export type ClientRequest = {
