@@ -40,6 +40,59 @@ pipelines:
         services:
           - docker
 
+    # This step will deploy an image to the new "landing zone" environment via ArgoCD.
+    - step: &step-deploy-landing-zone
+        name: "Deploy built image to the Kidsloop landing zone"
+        image: argoproj/argocd:v2.3.1
+        script:
+          # What are we deploying?
+          - export BRANCH_TAG=$(echo "$BITBUCKET_BRANCH" | sed -E 's/([^0-9a-zA-Z]+)/-/g' | awk '{print tolower($0)}')
+          - export REPO=$DOCKER_REPO_URL/kidsloop-sfu-gateway # DOCKER_REPO_URL is workspace wide variable
+          - export COMMIT_TAG=$(echo $BITBUCKET_COMMIT | cut -c1-7)
+          - printf '"Git tag":"%s", "Git commit":"%s" "ECR repo":"%s"' $BRANCH_TAG $COMMIT_TAG $REPO
+          - export DEPLOY_TAG=$BRANCH_TAG-$COMMIT_TAG
+          - echo "Tag to deploy - $DEPLOY_TAG"
+
+          # Set up port forwarding
+          - echo $TOOLS_KUBECONFIG_CONTENT_B64 | base64 -d > $BITBUCKET_CLONE_DIR/kubeconfig.yml
+          - >
+            PORTFORWARD_CONTAINER=$(
+            docker run
+            --volume $BITBUCKET_CLONE_DIR/kubeconfig.yml:/mnt/kubeconfig.yml
+            --env KUBECONFIG=/mnt/kubeconfig.yml
+            --publish 8080:8080
+            --hostname kubeproxy
+            --detach bitnami/kubectl:1.21
+            port-forward -n argocd svc/argocd-server
+            --address 0.0.0.0 8080:80
+            )
+          - sleep 5
+
+          # Deploy tag to environment with ArgoCD
+          - >
+            export
+            ARGOCD_SERVER=localhost:8080
+            ARGOCD_APP=uk-landingzone-sfu-gateway
+            ARGOCD_APP_CHART_TAG_PATH=sfuGateway.tag
+            ARGOCD_OPTS='--grpc-web --insecure --plaintext'
+          - >
+            argocd login $ARGOCD_SERVER
+            --username $ARGOCD_AUTH_USERNAME
+            --password $ARGOCD_AUTH_PASSWORD
+            $ARGOCD_OPTS
+          - argocd app get $ARGOCD_APP
+          - argocd app set $ARGOCD_APP -p $ARGOCD_APP_CHART_TAG_PATH=$DEPLOY_TAG
+          - argocd app sync $ARGOCD_APP --timeout 300
+
+          # Clean up tasks
+          - docker logs $PORTFORWARD_CONTAINER
+          - docker kill $PORTFORWARD_CONTAINER
+          - docker rm $PORTFORWARD_CONTAINER
+        services:
+          - docker
+        caches:
+          - docker
+
 definitions:
   caches:
     nodemodules: ./node_modules
