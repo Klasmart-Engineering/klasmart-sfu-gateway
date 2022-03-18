@@ -1,6 +1,7 @@
 import {Cluster, Redis as IORedis} from "ioredis";
 import { MAX_SFU_LOAD } from "./selectSfu";
 import { getEnvNumber } from "./service";
+import {Logger} from "./logger";
 
 export type Type<T> = string & {
     /* This value does not exist during execution and is only used for type matching during compiletime */
@@ -57,8 +58,8 @@ export async function selectSfuFromLoad(newLoad: number, sfuStatuses: {id: SfuId
         newLoad = 3;
     }
 
-    console.log(`sfuStatuses: ${JSON.stringify(sfuStatuses)}`);
-    console.log(`newLoad: ${newLoad}`);
+    Logger.info(`sfuStatuses: ${JSON.stringify(sfuStatuses)}`);
+    Logger.debug(`newLoad: ${newLoad}`);
     const availableSfus = sfuStatuses.filter(sfu => MAX_SFU_LOAD - sfu.status.producers - sfu.status.consumers >= newLoad).filter(sfu => sfu.id !== excludeId);
 
     if (availableSfus.length > 0) {
@@ -114,7 +115,10 @@ export class RedisRegistrar implements Registrar {
         } else if (ids.length === 0) {
             throw new Error("No SFUs are registered");
         }
-        console.log(`Cannot exclude SFU ${excludeId} because there are no other SFUs available`);
+        if (excludeId) {
+            Logger.warn(`Cannot exclude SFU ${excludeId} because there are no other SFUs available`);
+        }
+
         return ids;
     }
 
@@ -133,13 +137,13 @@ export class RedisRegistrar implements Registrar {
 
             const oldestTimestamp = Date.now() - 15 * 1000;
             const numberDeleted = await this.redis.zremrangebyscore(key, 0, oldestTimestamp);
-            if (numberDeleted > 0) { console.info(`Deleted ${numberDeleted} outdated entries from '${key}'`); }
+            if (numberDeleted > 0) { Logger.debug(`Deleted ${numberDeleted} outdated entries from '${key}'`); }
 
             const list = await this.getSortedSet(key);
-            console.log(list);
+            Logger.debug(list);
             return list.flatMap(track => JsonParse<TrackInfo>(track) || []);
         } catch (e) {
-            console.error(e);
+            Logger.error(e);
             return [];
         }
 
@@ -169,16 +173,16 @@ export class RedisRegistrar implements Registrar {
         private readonly redis: IORedis | Cluster
     ) {
         redis.addListener("error", (err) => {
-            console.error(err);
+            Logger.error(err);
         });
         redis.addListener("reconnecting", (err) => {
-            console.log(err);
+            Logger.log(err);
         });
         redis.addListener("end", () => {
-            console.log("Redis connection ended");
+            Logger.warn("Redis connection ended");
         });
         redis.addListener("close", () => {
-            console.log("Redis connection closed");
+            Logger.warn("Redis connection closed");
         });
     }
 
@@ -188,7 +192,7 @@ export class RedisRegistrar implements Registrar {
             if(status) { return JSON.parse(status) as T; }
             return;
         } catch(e) {
-            console.error(e);
+            Logger.error(e);
             return;
         }
     }
@@ -227,7 +231,7 @@ export class RedisRegistrar implements Registrar {
 
         const oldestTimestamp = Date.now() - 15 * 1000;
         const numberDeleted = await this.redis.zremrangebyscore(key, 0, oldestTimestamp);
-        if (numberDeleted > 0) { console.info(`Deleted ${numberDeleted} outdated entries from '${key}'`); }
+        if (numberDeleted > 0) { Logger.debug(`Deleted ${numberDeleted} outdated entries from '${key}'`); }
     }
 
     public static roomSfu (roomId: string) { return `room:${roomId}:sfu`; }
@@ -246,7 +250,7 @@ function JsonParse<T>(serialized: string) {
     try {
         return JSON.parse(serialized) as T;
     } catch(e) {
-        console.error(`Failed to deserialize value: ${e}`);
+        Logger.error(`Failed to deserialize value: ${e}`);
         return;
     }
 }

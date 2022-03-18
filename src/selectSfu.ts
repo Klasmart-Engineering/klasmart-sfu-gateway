@@ -4,6 +4,7 @@ import {IScheduler, OrgId, ScheduleId} from "./scheduler";
 import { Url } from "url";
 import { getEnvNumber } from "./service";
 import {FromScheduleStrategy, RandomStrategy, Strategy} from "./strategy";
+import {Logger} from "./logger";
 
 
 export const MAX_SFU_LOAD = getEnvNumber(process.env.MAX_SFU_LOAD, 500);
@@ -33,12 +34,12 @@ export async function selectSfu(
             fromScheduleStrategy,
             randomStrategy
         ];
-        console.warn(`Could not find selectionStrategy(${selectionStrategy}), using default`);
+        Logger.warn(`Could not find selectionStrategy(${selectionStrategy}), using default`);
         for (const strategy of strategies) {
             try {
                 return await strategy.getSfuId(excludeId);
             } catch (e) {
-                console.warn(`Could not find SFU with strategy ${strategy.name}`, e);
+                Logger.warn(`Could not find SFU with strategy ${strategy.name}`, e);
             }
         }
         throw new Error("Unable to find SFU to use");

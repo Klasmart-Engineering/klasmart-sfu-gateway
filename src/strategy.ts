@@ -1,6 +1,7 @@
 import {Registrar, SfuId, TrackInfo} from "./redis";
 import {IScheduler, OrgId, ScheduleId} from "./scheduler";
 import {MAX_SFU_LOAD} from "./selectSfu";
+import {Logger} from "./logger";
 
 export abstract class Strategy {
     abstract name: string;
@@ -42,10 +43,10 @@ export class FromScheduleStrategy implements Strategy {
         const roster = await this.scheduler.getSchedule(this.scheduleId, this.orgId, this.cookie);
         const numStudents = roster.class_roster_students.length;
         const numTeachers = roster.class_roster_teachers.length;
-        console.log(`numStudents: ${numStudents}, numTeachers: ${numTeachers}`);
+        Logger.debug(`numStudents: ${numStudents}, numTeachers: ${numTeachers}`);
         const sfuIds = this.tracks.filter(t => t.sfuId !== excludeId).reduce((ids, track) => ids.add(track.sfuId), new Set<SfuId>());
         // It would be ideal to have the user id attached to the track in redis, but until that is implemented we'll assume
-        // the remaining tracks is close to 3 * teachers + 2 * students - tracks.length
+        // the remaining tracks is close to 3 * teachers + 3 * students - tracks.length
         const potentialNewTracks  = 3 * numTeachers + 3 * numStudents - this.tracks.length;
         const potentialNewConsumers = potentialNewTracks * (numStudents + numTeachers);
         let potentialNewLoad = potentialNewTracks + potentialNewConsumers;

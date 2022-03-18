@@ -6,6 +6,7 @@ import {Server} from "./server";
 import {IScheduler, MockScheduler, OrgId, ScheduleId, Scheduler} from "./scheduler";
 import {selectSfu} from "./selectSfu";
 import {Url} from "url";
+import {Logger} from "./logger";
 
 export function getEnvNumber(envVar: string | undefined, defaultValue: number): number {
     if (envVar) {
@@ -14,7 +15,7 @@ export function getEnvNumber(envVar: string | undefined, defaultValue: number): 
             return parsedInt;
         }
     }
-    console.warn(`Invalid value for ${envVar}, using default value ${defaultValue}`);
+    Logger.warn(`Invalid value: ${envVar}, using default value ${defaultValue}`);
     return defaultValue;
 }
 
@@ -51,14 +52,14 @@ export function createServer(registrar: RedisRegistrar) {
                 try {
                     const tracks = await registrar.getTracks(roomId);
                     const sfuId = await selectSfu(url, registrar, tracks, scheduler, scheduleId, orgId, authCookie);
-                    console.log(`Sending sfuId(${sfuId})`);
+                    Logger.info(`Sending sfuId(${sfuId})`);
                     const trackEvents = [
                         ...tracks.map<TrackInfoEvent>(add => ({ add })),
                     ];
                     ws.send(JSON.stringify([{ sfuId }]));
                     ws.send(JSON.stringify(trackEvents));
                 } catch (e) {
-                    console.error(e);
+                    Logger.error(e);
                     const error = <Error> e;
                     ws.send(JSON.stringify([{ error: error.message }]));
                 }
@@ -70,7 +71,7 @@ export function createServer(registrar: RedisRegistrar) {
                 currentCursor = cursor;
             }
         } catch(e) {
-            console.error(e);
+            Logger.error(e);
             if(socket.writable) { socket.end(); }
             if(socket.readable) { socket.destroy(); }
         }
@@ -85,7 +86,7 @@ export function createServer(registrar: RedisRegistrar) {
         const sfuAddress = await registrar.getSfuAddress(sfuId);
         if (!sfuAddress) { throw new Error(`sfu address not found for sfuId("${sfuId}")`); }
 
-        console.log(`Proxying to sfu(${sfuId}) at '${sfuAddress}' for [${req.socket.remoteFamily}](${req.socket.remoteAddress}:${req.socket.remotePort})`);
+        Logger.info(`Proxying to sfu(${sfuId}) at '${sfuAddress}' for [${req.socket.remoteFamily}](${req.socket.remoteAddress}:${req.socket.remotePort})`);
         const target = `ws://${sfuAddress}${req.url}`;
         proxy.ws(req, socket, head, { target, ignorePath: true });
     });
@@ -100,10 +101,10 @@ export function createServer(registrar: RedisRegistrar) {
             if (!sfuAddress) { throw new Error(`No sfu address found for roomId(${roomId})`); }
 
             const target = `ws://${sfuAddress}`;
-            console.log(`Proxying to target(${target})`);
+            Logger.info(`Proxying to target(${target})`);
             proxy.ws(req, socket, head, { target, ignorePath: true });
         } catch (e) {
-            console.error(e);
+            Logger.error(e);
             socket.end();
         }
     });
@@ -118,14 +119,14 @@ async function onMessage(message: RawData, registrar: RedisRegistrar, url: Url, 
         const request = parse(message);
         const tracks = await registrar.getTracks(roomId);
         const sfuId = await selectSfu(url, registrar, tracks, scheduler, scheduleId, orgId, authCookie, request?.excludeId);
-        console.log(`Sending sfuId(${sfuId})`);
+        Logger.info(`Sending sfuId(${sfuId})`);
         const trackEvents = [
             ...tracks.map<TrackInfoEvent>(add => ({ add })),
         ];
         ws.send(JSON.stringify([{ sfuId }]));
         ws.send(JSON.stringify(trackEvents));
     } catch (e) {
-        console.error(`Error: ${e}`);
+        Logger.error(`Error: ${e}`);
         const error = <Error> e;
         ws.send(JSON.stringify({ error: error.message }));
     }

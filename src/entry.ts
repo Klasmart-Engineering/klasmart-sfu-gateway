@@ -3,11 +3,12 @@ import {RedisRegistrar} from "./redis";
 import Redis, {Cluster, Redis as IORedis} from "ioredis";
 import {createServer, getEnvNumber} from "./service";
 import dotenv from "dotenv";
+import {Logger} from "./logger";
 
 async function main() {
     try {
         dotenv.config();
-        process.on("uncaughtException",  (err) => { console.log(err); });
+        process.on("uncaughtException",  (err) => { Logger.error(err); });
 
         const redisMode: string = process.env.REDIS_MODE ?? "NODE";
         const redisPort = Number(process.env.REDIS_PORT ?? 6379);
@@ -50,17 +51,17 @@ async function main() {
             });
         }
         await redis.connect();
-        console.log("🔴 Redis database connected");
+        Logger.info("🔴 Redis database connected");
 
         const registrar = new RedisRegistrar(redis);
         const app = createServer(registrar);
 
         const port = getEnvNumber(process.env.PORT, 8002);
         await app.listen(port);
-        console.log(`🌎 Server available on port ${port}`);
+        Logger.info(`🌎 Server available on port ${port}`);
 
     } catch(e) {
-        console.error(e);
+        Logger.error(e);
         process.exit(-1);
     }
 }

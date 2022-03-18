@@ -5,10 +5,11 @@ import parseUrl from "parseurl";
 import { Url } from "url";
 import { newRoomId } from "./redis";
 import {newOrgId, newScheduleId} from "./scheduler";
+import {Logger} from "./logger";
 
 export async function handleAuth(req: IncomingMessage, url = parseUrl(req)) {
     if (process.env.DISABLE_AUTH) {
-        console.warn("RUNNING IN DEBUG MODE - SKIPPING AUTHENTICATION AND AUTHORIZATION");
+        Logger.warn("RUNNING IN DEBUG MODE - SKIPPING AUTHENTICATION AND AUTHORIZATION");
         return {
             userId: debugUserId(),
             roomId: newRoomId("test-room"),
