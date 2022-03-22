@@ -1,6 +1,6 @@
 import cookie from "cookie";
 import { IncomingMessage } from "http";
-import { checkAuthenticationToken, checkLiveAuthorizationToken } from "kidsloop-token-validation";
+import { checkAuthenticationToken, checkLiveAuthorizationToken } from "@kl-engineering/kidsloop-token-validation";
 import parseUrl from "parseurl";
 import { Url } from "url";
 import { newRoomId } from "./redis";

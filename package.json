@@ -1,6 +1,6 @@
 {
   "name": "@kl-engineering/kidsloop-sfu-gateway",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -42,7 +42,7 @@
     "dotenv": "^14.3.2",
     "http-proxy": "^1.18.1",
     "ioredis": "^4.28.5",
-    "kidsloop-token-validation": "bitbucket:calmisland/kidsloop-token-validation",
+    "@kl-engineering/kidsloop-token-validation": "^1.5.2",
     "lru-cache": "^6.0.0",
     "newrelic": "^8.4.0",
     "parseurl": "^1.3.3",
