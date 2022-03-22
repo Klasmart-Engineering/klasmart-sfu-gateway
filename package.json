@@ -1,6 +1,6 @@
 {
-  "name": "sfu-gateway",
-  "version": "1.1.0",
+  "name": "@kl-engineering/kidsloop-sfu-gateway",
+  "version": "2.0.1",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -9,7 +9,7 @@
     "dev": "ts-node-dev src/entry.ts",
     "test:unit": "ENV_FILE=./config/.env.test jest --coverage"
   },
-  "author": "",
+  "author": "Josiah Evans <josiah.evans@kidsloop.live>, Owen Delahoy <owen.delahoy@kidsloop.live>",
   "license": "ISC",
   "devDependencies": {
     "@types/axios": "^0.14.0",
