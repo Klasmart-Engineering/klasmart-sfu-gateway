@@ -50,6 +50,9 @@
     "winston": "^3.6.0",
     "ws": "^8.4.2"
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "config": {
     "commitizen": {
       "path": "cz-conventional-changelog"
