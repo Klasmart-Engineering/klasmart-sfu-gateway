@@ -13,7 +13,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.KL_PACKAGES_PAT }}
         with:
-          node-version: 'lts-alpine'
+          node-version: '16'
           registry-url: 'https://npm.pkg.github.com'
           scope: '@kl-engineering'
       - name: Install Dependencies
@@ -36,7 +36,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.KL_PACKAGES_PAT }}
         with:
-          node-version: 'lts-alpine'
+          node-version: '16'
           registry-url: 'https://npm.pkg.github.com'
           scope: '@kl-engineering'
       - name: Install Dependencies
