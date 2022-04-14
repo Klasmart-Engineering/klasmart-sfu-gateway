@@ -158,12 +158,13 @@ describe("selectSfu", () => {
         await expect(strategy.getSfuId()).rejects.toThrow();
     });
 
-    it("should throw when there are no SFUs available for FromScheduleStrategy", async () => {
+    it("should return undefined when there are no SFUs available for FromScheduleStrategy", async () => {
         const sfuIds: SfuId[] = [];
         const tracks: TrackInfo[] = [];
         const mockRegistrar = new MockRegistrar(sfuIds, tracks);
         const mockScheduler = new MockScheduler(1, 1);
         const strategy = new FromScheduleStrategy(tracks, mockRegistrar, mockScheduler, newScheduleId("1"), newOrgId("2"), "");
-        await expect(strategy.getSfuId()).rejects.toThrow();
+        const sfuId = await strategy.getSfuId();
+        await expect(sfuId).toBeUndefined();
     });
 });
