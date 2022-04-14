@@ -24,8 +24,8 @@ pipelines:
 
           - aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin $DOCKER_REPO_URL
 
-          - cp deploy/Dockerfile.bitbucket-pipeline .
-          - docker build -t kidsloop-sfu-gateway -f Dockerfile.bitbucket-pipeline .
+          - cp deploy/Dockerfile.ci-pipeline .
+          - docker build -t kidsloop-sfu-gateway -f Dockerfile.ci-pipeline .
 
           - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG
           - docker tag kidsloop-sfu-gateway:latest $REPO:$BRANCH_TAG-latest
