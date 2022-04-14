@@ -9,7 +9,8 @@
     "dev": "ts-node-dev src/entry.ts",
     "test:unit": "ENV_FILE=./config/.env.test jest --coverage",
     "test": "npm run test:unit",
-    "lint": "eslint --ext .ts src/**"
+    "lint": "eslint --ext .ts src/**",
+    "release": "standard-version"
   },
   "author": "Josiah Evans <josiah.evans@kidsloop.live>, Owen Delahoy <owen.delahoy@kidsloop.live>",
   "license": "ISC",
@@ -28,6 +29,7 @@
     "@typescript-eslint/parser": "^5.19.0",
     "eslint": "^8.13.0",
     "jest": "27.5.1",
+    "standard-version": "^9.3.2",
     "ts-jest": "^27.1.4",
     "ts-loader": "^9.2.8",
     "ts-node": "^10.7.0",
