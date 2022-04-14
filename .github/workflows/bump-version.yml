@@ -1,0 +1,63 @@
+
+name: Bump version
+
+concurrency:
+    group: BumpVersion
+    cancel-in-progress: true
+
+on:
+    workflow_dispatch:
+        inputs:
+            prerelease:
+                description: Prerelease tag (optional)
+                required: false
+                type: string
+                default: ''
+
+jobs:
+    confirm-version-generation:
+        runs-on: ubuntu-latest
+        environment: latest
+        steps:
+            - name: Debug message
+              run: echo Version generation confirmed
+
+    install:
+        needs: [confirm-version-generation]
+        uses: KL-Engineering/github-action-workflows/.github/workflows/npm-ci.yml@fd75ae138cbb40d666d49b091ec2a4220a0ebeb3
+        secrets:
+            NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+
+    test:
+        needs: [install]
+        uses: KL-Engineering/github-action-workflows/.github/workflows/npm-test-jest.yml@fd75ae138cbb40d666d49b091ec2a4220a0ebeb3
+
+    generate-version:
+        needs: [test]
+        uses: KL-Engineering/github-action-workflows/.github/workflows/npm-generate-version.yml@fd75ae138cbb40d666d49b091ec2a4220a0ebeb3
+        secrets:
+            NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+
+    build-and-push:
+        needs: [generate-version]
+        runs-on: ubuntu-latest
+        steps:
+            - uses: KL-Engineering/github-action-workflows/.github/actions/npm-ci@fd75ae138cbb40d666d49b091ec2a4220a0ebeb3
+              with:
+                NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+            - name: NPM Build
+              id: npm-build
+              run: npm run build
+            - name: Build and Push Container
+              uses: KL-Engineering/github-action-workflows/.github/actions/docker-build-push@fd75ae138cbb40d666d49b091ec2a4220a0ebeb3
+              with:
+                environment: ${{ needs.generate-version.outputs.tag }}
+                region: global
+                ecr_repository: kidsloop-sfu-gateway
+                dockerfile_dir: deploy
+                dockerfile_name: Dockerfile.ci-pipeline
+                dockerfile_context: .
+                ecr_aws_region: eu-west-2
+                ecr_registry: 942095822719.dkr.ecr.eu-west-2.amazonaws.com
+                ECR_AWS_ACCESS_KEY_ID: ${{ secrets.ECR_AWS_ACCESS_KEY_ID }}
+                ECR_AWS_SECRET_ACCESS_KEY: ${{ secrets.ECR_AWS_SECRET_ACCESS_KEY }}

@@ -49,10 +49,6 @@ export type SfuRegistrar = {
 };
 
 export async function selectSfuFromLoad(newLoad: number, sfuStatuses: {id: SfuId, status: SfuStatus}[], excludeId?: SfuId) {
-    if (sfuStatuses.length === 0) {
-        throw new Error("No SFUs are reporting statuses");
-    }
-
     // newLoad is too high for any single SFU to handle, so only consider SFUs that can handle an additional track.
     if (newLoad > MAX_SFU_LOAD) {
         newLoad = 3;
@@ -80,7 +76,7 @@ export type Registrar = SfuRegistrar & TrackRegistrar;
 export class RedisRegistrar implements Registrar {
     // Gets an SFU which has the capacity to handle the new load. If no SFU can fully handle the new load, return the SFU with the least load.
     public async getAvailableSfu(newLoad: number, excludeId?: SfuId) {
-        const sfuIds = (await this.getSfuIds()).filter(sfuId => sfuId !== excludeId);
+        const sfuIds = await this.getSfuIds(excludeId);
         const sfuStatuses = (await Promise.allSettled(sfuIds.map(async sfuId => {
             return {id: sfuId, status: await this.getSfuStatus(sfuId) };
         })))
