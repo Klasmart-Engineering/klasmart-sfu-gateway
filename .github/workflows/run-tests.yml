@@ -1,23 +1,18 @@
-name: Run Tests
-
-concurrency:
-  group: runtests
-  cancel-in-progress: true
-
+name: Test
 on:
+  workflow_call:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
-
 jobs:
   install:
-    uses: KL-Engineering/github-action-workflows/.github/workflows/npm-ci.yml@v3.0.1
+    uses: KL-Engineering/github-action-workflows/.github/workflows/npm-ci.yml@v3.1.1
     secrets:
       NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+  lint:
+    needs: [install]
+    uses: KL-Engineering/github-action-workflows/.github/workflows/npm-lint.yml@v3.1.1
 
   test:
-    needs: [install]
-    uses: KL-Engineering/github-action-workflows/.github/workflows/npm-test-jest.yml@v3.0.1
+    needs: [install, lint]
+    uses: KL-Engineering/github-action-workflows/.github/workflows/npm-test-jest.yml@v3.1.1

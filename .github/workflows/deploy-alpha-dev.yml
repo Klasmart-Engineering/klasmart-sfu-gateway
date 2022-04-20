@@ -1,0 +1,76 @@
+name: Deploy to Alpha (job)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ecs_aws_service:
+        required: true
+        type: string
+        default: kidsloop-alpha-live-sfu-gateway
+        description: "AWS ECS service name"
+      aws_account_id:
+        required: false
+        type: string
+        default: "871601235178"
+        description: "AWS account id"
+      ecs_aws_cluster:
+        required: false
+        type: string
+        default: kidsloop-alpha
+        description: "AWS ECS cluster name"
+      ecs_aws_region:
+        required: false
+        type: string
+        default: ap-northeast-2
+        description: "AWS region ECS cluster is deployed"
+    secrets:
+      AWS_ACCESS_KEY_ID_ALPHA_DEV:
+        required: true
+      AWS_SECRET_ACCESS_KEY_ALPHA_DEV:
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy to ECS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_ALPHA_DEV }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_ALPHA_DEV }}
+          aws-region: ${{ github.event.inputs.ecs_aws_region }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Update service
+        env:
+          ACCOUNT_ID: ${{ github.event.inputs.aws_account_id }}
+          ECS_SERVICE: ${{ github.event.inputs.ecs_aws_service }}
+          ECS_CLUSTER: ${{ github.event.inputs.ecs_aws_cluster }}
+          ECS_REGION: ${{ github.event.inputs.ecs_aws_region }}
+        run: |
+          aws ecs update-service \
+            --region $ECS_REGION \
+            --cluster $ECS_CLUSTER \
+            --force-new-deployment \
+            --service arn:aws:ecs:$ECS_REGION:$ACCOUNT_ID:service/$ECS_CLUSTER/$ECS_SERVICE
+          export AWS_ECS_IMAGE=$(aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE)
+          export TASK_DEF=$(echo $AWS_ECS_IMAGE | grep -m 1 taskDefinition)
+          echo "Task definition => $TASK_DEF"
+          echo ::set-output name=task_definition::$TASK_DEF
+      - uses: ravsamhq/notify-slack-action@v1
+        if: always()
+        with:
+          status: ${{ job.status }}
+          notification_title: '{workflow} has {status_message}'
+          message_format: '{emoji} *{workflow}* {status_message} when deploying ${{ github.event.inputs.ecs_aws_cluster }}:${{ github.event.inputs.ecs_aws_service }}:${{ steps.deploy.outputs.task_definition }}'
+          footer: '${{ github.event.inputs.aws_account_id }}:${{ github.event.inputs.ecs_aws_region }}'
+          notify_when: 'failure'
+          # mention_users: ''
+          # mention_users_when: 'failure,warnings'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEB_HOOK }}

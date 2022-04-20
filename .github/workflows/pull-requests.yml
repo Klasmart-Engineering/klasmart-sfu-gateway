@@ -5,16 +5,16 @@ on:
 
 jobs:
   conventional-pr-title:
-    uses: KL-Engineering/github-action-workflows/.github/workflows/conventional-pr-title.yml@v3.0.1
+    uses: KL-Engineering/github-action-workflows/.github/workflows/conventional-pr-title.yml@v3.1.1
 
   install:
-    uses: KL-Engineering/github-action-workflows/.github/workflows/npm-ci.yml@v3.0.1
+    uses: KL-Engineering/github-action-workflows/.github/workflows/npm-ci.yml@v3.1.1
     secrets:
       NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
   lint:
     needs: [install]
-    uses: KL-Engineering/github-action-workflows/.github/workflows/npm-lint.yml@v3.0.1
+    uses: KL-Engineering/github-action-workflows/.github/workflows/npm-lint.yml@v3.1.1
 
   test:
     needs: [install, lint, conventional-pr-title]
-    uses: KL-Engineering/github-action-workflows/.github/workflows/npm-test-jest.yml@v3.0.1
+    uses: KL-Engineering/github-action-workflows/.github/workflows/npm-test-jest.yml@v3.1.1
