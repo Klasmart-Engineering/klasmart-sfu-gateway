@@ -4,7 +4,7 @@ import { getEnvNumber } from "./service";
 import {Logger} from "./logger";
 
 export type Type<T> = string & {
-    /* This value does not exist during execution and is only used for type matching during compiletime */
+    /* This value does not exist during execution and is only used for type matching during compile time */
     __TYPE__: string extends T ? unknown : T
 };
 export type UserId = Type<"UserId">;

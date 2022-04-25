@@ -8,3 +8,4 @@ positive integers in the range between 0 and 10000.  A value of 1000 for instanc
 value exists to help avoid hitting Redis too hard when there are many sfu gateways and many requests happening.  In those scenarios,
 it isn't necessary to delete old entries on every request (as there may be many requests per second).  
 CACHE_TTL - The TTL for the schedule cache.  Defaults to 15000, which is 15 seconds.  Try adjusting this value down if you see OOMs.
+LOG_LEVEL - The log level for the application.  Defaults to INFO.

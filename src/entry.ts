@@ -6,10 +6,12 @@ import dotenv from "dotenv";
 import {Logger} from "./logger";
 
 async function main() {
+    dotenv.config();
+    process.on("uncaughtException",  (err) => { Logger.error(err); });
+    if (process.env.DISABLE_AUTH) {
+        Logger.warn("RUNNING IN DEBUG MODE - SKIPPING AUTHENTICATION AND AUTHORIZATION");
+    }
     try {
-        dotenv.config();
-        process.on("uncaughtException",  (err) => { Logger.error(err); });
-
         const redisMode: string = process.env.REDIS_MODE ?? "NODE";
         const redisPort = Number(process.env.REDIS_PORT ?? 6379);
         const host = process.env.REDIS_HOST;

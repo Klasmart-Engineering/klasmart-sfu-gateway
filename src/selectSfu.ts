@@ -22,19 +22,20 @@ export async function selectSfu(
     const randomStrategy = new RandomStrategy(tracks, registrar);
     const fromScheduleStrategy = new FromScheduleStrategy(tracks, registrar, scheduler, scheduleId, orgId, cookie);
 
-    const selectionStrategy = getFromUrl(url, "selectionStrategy") ?? "fromSchedule";
+    const selectionStrategy = getFromUrl(url, "selectionStrategy");
     switch (selectionStrategy) {
     case "random":
+        Logger.debug("Using random strategy");
         return await randomStrategy.getSfuId(excludeId);
     case "fromSchedule":
+        Logger.debug("Using fromSchedule strategy");
         return await fromScheduleStrategy.getSfuId(excludeId);
     default: {
-        // Strategies to attempt in the order they are listed
+        Logger.warn(`Could not find selectionStrategy(${selectionStrategy}), using default`);        // Strategies to attempt in the order they are listed
         const strategies: Strategy[] = [
             fromScheduleStrategy,
             randomStrategy
         ];
-        Logger.warn(`Could not find selectionStrategy(${selectionStrategy}), using default`);
         for (const strategy of strategies) {
             try {
                 return await strategy.getSfuId(excludeId);

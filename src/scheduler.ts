@@ -1,6 +1,8 @@
 import Keyv from "keyv";
 import {Type} from "./redis";
 import {Axios, AxiosRequestConfig} from "axios";
+import {Logger} from "./logger";
+import {getEnvNumber} from "./service";
 
 export type ScheduleId = Type<"ScheduleId">;
 export const newScheduleId = (id: string) => id as ScheduleId;
@@ -36,6 +38,10 @@ export class Scheduler implements IScheduler {
     }
 
     private async getUpdatedSchedule(scheduleId: ScheduleId, orgId: OrgId, cookie: string): Promise<Roster> {
+        if (process.env.DISABLE_AUTH) {
+            return getMockSchedule();
+        }
+
         const url = `${this.cmsEndpoint}/v1/schedules/${scheduleId}?org_id=${orgId}`;
         const config: AxiosRequestConfig = {
             headers: {
@@ -85,39 +91,26 @@ export class Scheduler implements IScheduler {
     }
 }
 
-export class MockScheduler implements IScheduler {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    private rosters = new Map<ScheduleId, Roster>();
-    public constructor(private readonly numStudents: number, private readonly numTeachers: number) {}
-    public async getSchedule(scheduleId: ScheduleId, _orgId: OrgId, _cookie: string): Promise<Roster> {
-        const roster = this.rosters.get(scheduleId);
-        if (roster) {
-            return roster;
-        }
-        const students = [];
-        for (let i = 0; i < this.numStudents; i++) {
-            students.push({
-                id: `student-${i}`,
-                name: `Student ${i}`,
-                type: "student",
-                enable: true
-            });
-        }
-        const teachers = [];
-        for (let i = 0; i < this.numTeachers; i++) {
-            teachers.push({
-                id: `teacher-${i}`,
-                name: `Teacher ${i}`,
-                type: "teacher",
-                enable: true
-            });
-        }
-        return {
-            class_roster_students: students,
-            class_roster_teachers: teachers
-        };
+function getMockSchedule() {
+    const numStudents = getEnvNumber(process.env.NUM_SCHEDULED_STUDENTS, 50);
+    const numTeachers = getEnvNumber(process.env.NUM_SCHEDULED_TEACHERS, 3);
+    Logger.warn(`Using mock schedule with ${numStudents} students and ${numTeachers} teachers`);
+
+    const students = [];
+
+    for (let i = 0; i < numStudents; i++) {
+        students.push({
+            id: `student-${i}`
+        });
     }
-    public setRoster(scheduleId: ScheduleId, roster: Roster) {
-        this.rosters.set(scheduleId, roster);
+    const teachers = [];
+    for (let i = 0; i < numTeachers; i++) {
+        teachers.push({
+            id: `teacher-${i}`
+        });
     }
+    return {
+        class_roster_students: students,
+        class_roster_teachers: teachers
+    };
 }

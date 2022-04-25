@@ -3,7 +3,7 @@ import {RawData, WebSocket, WebSocketServer} from "ws";
 import {handleAuth} from "./auth";
 import {newSfuId, RedisRegistrar, RoomId, SfuId, TrackInfoEvent} from "./redis";
 import {Server} from "./server";
-import {IScheduler, MockScheduler, OrgId, ScheduleId, Scheduler} from "./scheduler";
+import {IScheduler, OrgId, ScheduleId, Scheduler} from "./scheduler";
 import {selectSfu} from "./selectSfu";
 import {Url} from "url";
 import {Logger} from "./logger";
@@ -25,14 +25,7 @@ export function createServer(registrar: RedisRegistrar) {
         throw new Error("CMS_ENDPOINT environment variable must be set");
     }
     const cmsEndpoint = process.env.CMS_ENDPOINT;
-    let scheduler: IScheduler;
-    if (process.env.DISABLE_AUTH) {
-        const numStudents = getEnvNumber(process.env.NUM_SCHEDULED_STUDENTS, 50);
-        const numTeachers = getEnvNumber(process.env.NUM_SCHEDULED_TEACHERS, 3);
-        scheduler = new MockScheduler(numStudents, numTeachers);
-    } else {
-        scheduler = new Scheduler(cmsEndpoint);
-    }
+    const scheduler = new Scheduler(cmsEndpoint);
 
     server.get("/server-health", (_req, res) => {
         res.statusCode = 200;
