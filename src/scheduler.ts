@@ -1,4 +1,4 @@
-import LRUCache from "lru-cache";
+import Keyv from "keyv";
 import {Type} from "./redis";
 import {Axios, AxiosRequestConfig} from "axios";
 
@@ -9,8 +9,8 @@ export type OrgId = Type<"OrgId">;
 export const newOrgId = (id: string) => id as OrgId;
 
 type Roster = {
-    class_roster_teachers: {id: string, name: string, type: string, enable: boolean}[];
-    class_roster_students: {id: string, name: string, type: string, enable: boolean}[];
+    class_roster_teachers: {id: string}[];
+    class_roster_students: {id: string}[];
 };
 
 export type IScheduler = {
@@ -20,22 +20,18 @@ export type IScheduler = {
 export class Scheduler implements IScheduler {
     public constructor(
         private readonly cmsEndpoint: string,
-        private cache: LRUCache<string, Roster> = new LRUCache( {
-            max: 100000,
-            maxAge: 1000 * 15,
-            stale: false,
-            updateAgeOnGet: false
-        })) {
+        private cache: Keyv<Roster> = new Keyv(),
+        private ttl: number = getEnvNumber("CACHE_TTL", 15000)) {
     }
 
     public async getSchedule(scheduleId: ScheduleId, orgId: OrgId, cookie: string) {
-        let schedule = this.cache.get(`${scheduleId}-${orgId}`);
+        let schedule = await this.cache.get(`${scheduleId}-${orgId}`);
         if (schedule) {
             return schedule;
         }
 
         schedule = await this.getUpdatedSchedule(scheduleId, orgId, cookie);
-        this.cache.set(`${scheduleId}-${orgId}`, schedule);
+        await this.cache.set(`${scheduleId}-${orgId}`, schedule, this.ttl);
         return schedule;
     }
 
@@ -72,7 +68,20 @@ export class Scheduler implements IScheduler {
         if (roster.class_roster_teachers === undefined || roster.class_roster_teachers === null) {
             roster.class_roster_teachers = [];
         }
-        return roster;
+
+        // Don't store any unneeded data in the cache
+        return {
+            class_roster_students: roster.class_roster_students.map(member => {
+                return {
+                    id: member.id,
+                };
+            }),
+            class_roster_teachers: roster.class_roster_teachers.map(member => {
+                return {
+                    id: member.id,
+                };
+            }),
+        };
     }
 }
 
