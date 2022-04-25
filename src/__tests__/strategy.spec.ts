@@ -10,7 +10,7 @@ import {
     TrackInfoEvent
 } from "../redis";
 import {FromScheduleStrategy, RandomStrategy} from "../strategy";
-import {MockScheduler, newOrgId, newScheduleId} from "../scheduler";
+import {Scheduler, newOrgId, newScheduleId} from "../scheduler";
 
 class MockRegistrar implements Registrar {
     private sfuStatuses = new Map<SfuId, SfuStatus>();
@@ -114,8 +114,8 @@ describe("selectSfu", () => {
             {sfuId: newSfuId("1"), producerId: newProducerId("2")},
         ];
         const mockRegistrar = new MockRegistrar(sfuIds, tracks);
-        const mockScheduler = new MockScheduler(1, 1);
-        const strategy = new FromScheduleStrategy(tracks, mockRegistrar, mockScheduler, newScheduleId("1"), newOrgId("2"), "");
+        const scheduler = new Scheduler("1");
+        const strategy = new FromScheduleStrategy(tracks, mockRegistrar, scheduler, newScheduleId("1"), newOrgId("2"), "");
         const sfu = await strategy.getSfuId();
         expect(sfu).toBeDefined();
         expect(sfu).toEqual(newSfuId("1"));
@@ -125,8 +125,8 @@ describe("selectSfu", () => {
         const sfuIds = [newSfuId("1"), newSfuId("2"), newSfuId("3")];
         const tracks: TrackInfo[] = [];
         const mockRegistrar = new MockRegistrar(sfuIds, tracks);
-        const mockScheduler = new MockScheduler(1, 1);
-        const strategy = new FromScheduleStrategy(tracks, mockRegistrar, mockScheduler, newScheduleId("1"), newOrgId("2"), "");
+        const scheduler = new Scheduler("1");
+        const strategy = new FromScheduleStrategy(tracks, mockRegistrar, scheduler, newScheduleId("1"), newOrgId("2"), "");
         const sfu = await strategy.getSfuId();
         expect(sfu).toBeDefined();
         expect(sfuIds.find(id => id === sfu)).toBeDefined();
@@ -143,8 +143,8 @@ describe("selectSfu", () => {
             producers: 250,
             consumers: 250
         });
-        const mockScheduler = new MockScheduler(25, 1);
-        const strategy = new FromScheduleStrategy(tracks, mockRegistrar, mockScheduler, newScheduleId("1"), newOrgId("2"), "");
+        const scheduler = new Scheduler("1");
+        const strategy = new FromScheduleStrategy(tracks, mockRegistrar, scheduler, newScheduleId("1"), newOrgId("2"), "");
         const sfu = await strategy.getSfuId();
         expect(sfu).toBeDefined();
         expect(sfu).toEqual(newSfuId("2"));
@@ -162,8 +162,8 @@ describe("selectSfu", () => {
         const sfuIds: SfuId[] = [];
         const tracks: TrackInfo[] = [];
         const mockRegistrar = new MockRegistrar(sfuIds, tracks);
-        const mockScheduler = new MockScheduler(1, 1);
-        const strategy = new FromScheduleStrategy(tracks, mockRegistrar, mockScheduler, newScheduleId("1"), newOrgId("2"), "");
+        const scheduler = new Scheduler("1");
+        const strategy = new FromScheduleStrategy(tracks, mockRegistrar, scheduler, newScheduleId("1"), newOrgId("2"), "");
         const sfuId = await strategy.getSfuId();
         await expect(sfuId).toBeUndefined();
     });
