@@ -182,7 +182,7 @@ export class RedisRegistrar implements Registrar {
         this.userTimouts.get(ws)?.refresh();
         try {
             const key = RedisRegistrar.keyNotification(RedisRegistrar.keyRoomTracks(roomId));
-            const readResult = await redis.xread("BLOCK", 1000, "STREAMS", key, cursor);
+            const readResult = await redis.xread("BLOCK", 10000, "STREAMS", key, cursor);
 
             if (!readResult) {
                 return {cursor};
