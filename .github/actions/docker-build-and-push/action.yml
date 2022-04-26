@@ -1,0 +1,82 @@
+name: (Action) docker build & push to ECR
+description: "Action for docker build & push to ECR"
+
+inputs:
+  region:
+    required: true
+    description: "region name under deploy/config"
+  environment:
+    required: true
+    description: ".env.<environment> under deploy/config/<region>"
+  ecr_repository:
+    required: true
+    description: "ECR application repo"
+  dockerfile_dir:
+    description: "Directory containing the Dockerfile"
+    required: true
+    default: deploy/
+  dockerfile_name:
+    required: false
+    description: "Dockerfile name"
+    default: Dockerfile
+  dockerfile_context:
+    required: false
+    description: "Dockerfile build context"
+    default: .
+  ecr_aws_region:
+    required: false
+    description: "ECR AWS region"
+    default: eu-west-2
+  ecr_registry:
+    required: false
+    description: "ECR AWS endpoint"
+    default: 942095822719.dkr.ecr.eu-west-2.amazonaws.com
+  ECR_AWS_ACCESS_KEY_ID:
+    required: true
+    description: "ECR AWS Access Key Id, stored as a secret"
+  ECR_AWS_SECRET_ACCESS_KEY:
+    required: true
+    description: "ECR AWS Secret Access Key, stored as a secret"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ inputs.ECR_AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ inputs.ECR_AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ inputs.ecr_aws_region }}
+
+    - name: Login to Amazon ECR
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build and Push Container
+      shell: bash
+      env:
+        ECR_REGISTRY: ${{ inputs.ecr_registry }}
+        ECR_REPOSITORY: ${{ inputs.ecr_repository }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        REGION: ${{ inputs.region }}
+      run: |
+        set +x
+        export ENV_TAG=$(echo "${{ env.ENVIRONMENT }}" | sed -E 's/([^0-9a-zA-Z\.]+)/-/g' | awk '{print tolower($0)}')
+        export BRANCH_TAG=$(echo "${GITHUB_REF_NAME}" | sed -E 's/([^0-9a-zA-Z\.]+)/-/g' | awk '{print tolower($0)}')
+        printf '"BRANCH_TAG":"%s", "ENV_TAG":"%s", "Git commit":"%s"' $BRANCH_TAG $ENV_TAG ${GITHUB_SHA::7}
+        docker build -t $ECR_REPOSITORY:$BRANCH_TAG-$ENV_TAG-latest -f ${{ inputs.dockerfile_dir }}/${{ inputs.dockerfile_name }} ${{ inputs.dockerfile_context }}
+        docker tag $ECR_REPOSITORY:$BRANCH_TAG-$ENV_TAG-latest $ECR_REGISTRY/$ECR_REPOSITORY:$BRANCH_TAG-$ENV_TAG
+        docker tag $ECR_REPOSITORY:$BRANCH_TAG-$ENV_TAG-latest $ECR_REGISTRY/$ECR_REPOSITORY:$BRANCH_TAG-${GITHUB_SHA::7}
+        docker tag $ECR_REPOSITORY:$BRANCH_TAG-$ENV_TAG-latest $ECR_REGISTRY/$ECR_REPOSITORY:$BRANCH_TAG-latest
+        docker tag $ECR_REPOSITORY:$BRANCH_TAG-$ENV_TAG-latest $ECR_REGISTRY/$ECR_REPOSITORY:alpha-latest
+        docker tag $ECR_REPOSITORY:$BRANCH_TAG-$ENV_TAG-latest $ECR_REGISTRY/$ECR_REPOSITORY:$ENV_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$BRANCH_TAG-$ENV_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$BRANCH_TAG-${GITHUB_SHA::7}
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$BRANCH_TAG-latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:alpha-latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$ENV_TAG
+
+    # - name: Push to kl-alpha-dev ECR in Seoul
+    #   shell: bash
+    #   run: |
+    #     set +x
+    #     AWS_SECRET_ACCESS_KEY=${{ inputs.ECR_AWS_SECRET_ACCESS_KEY }} AWS_ACCESS_KEY_ID=${{ inputs.ECR_AWS_ACCESS_KEY_ID }} aws ecs update-service --service arn:aws:ecs:ap-northeast-2:871601235178:service/kidsloop-alpha/kidsloop-alpha-live-graphql --force-new-deployment --cluster kidsloop-alpha --region ap-northeast-2

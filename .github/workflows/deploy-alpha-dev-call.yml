@@ -1,0 +1,110 @@
+name: Deploy to Alpha (job)
+
+on:
+  workflow_call:
+    inputs:
+      desired_ocitag:
+        required: true
+        type: string
+        default: main-latest
+        description: "new image tag to use for the selected task definition on ECS"
+      ecs_aws_service:
+        required: true
+        type: string
+        default: kidsloop-alpha-live-sfu
+        description: "AWS ECS service name"
+      aws_account_id:
+        required: false
+        type: string
+        default: "871601235178"
+        description: "AWS account id"
+      ecs_aws_cluster:
+        required: false
+        type: string
+        default: kidsloop-alpha
+        description: "AWS ECS cluster name"
+      ecs_aws_region:
+        required: false
+        type: string
+        default: ap-northeast-2
+        description: "AWS region ECS cluster is deployed"
+    secrets:
+      AWS_ACCESS_KEY_ID_ALPHA_DEV:
+        required: true
+      AWS_SECRET_ACCESS_KEY_ALPHA_DEV:
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy to ECS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_ALPHA_DEV }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_ALPHA_DEV }}
+          aws-region: ${{ inputs.ecs_aws_region }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Update service
+        env:
+          ACCOUNT_ID: ${{ inputs.aws_account_id }}
+          ECS_SERVICE: ${{ inputs.ecs_aws_service }}
+          ECS_CLUSTER: ${{ inputs.ecs_aws_cluster }}
+          ECS_REGION: ${{ inputs.ecs_aws_region }}
+          TARGET_OCITAG: ${{ inputs.desired_ocitag }}
+        run: |
+          echo "================================="
+          echo "This deployment will break terraform state for alpha dev."
+          echo "Remove the state for the task definition and the service before applying again"
+          echo "================================="
+          sudo apt install -y jq
+          aws --version
+          jq --version
+          TASK_DEFINITION_FAMILY_LOOKUP=$(
+            aws ecs list-task-definitions \
+              --family-prefix ${ECS_SERVICE} \
+              --query 'taskDefinitionArns' \
+            | jq '. | length'
+          )
+          SERVICE_JSON=$(aws ecs describe-services --services ${ECS_SERVICE} --cluster ${ECS_CLUSTER})
+          TASK_DEFINITION_JSON=$(aws ecs describe-task-definition --task-definition ${ECS_SERVICE})
+          CURRENT_IMAGE=$(
+            echo ${TASK_DEFINITION_JSON} \
+              | jq --raw-output ".taskDefinition.containerDefinitions[] | select(.name == \"${ECS_SERVICE}\") | .image"
+          )
+          NEW_IMAGE=$(echo $CURRENT_IMAGE | sed "s#:.*#:$TARGET_OCITAG#g")
+          NEW_TASK_DEFINITION_JSON=$(echo $TASK_DEFINITION_JSON | sed "s#$CURRENT_IMAGE#$NEW_IMAGE#g")
+          echo $NEW_TASK_DEFINITION_JSON > ./tmp.json
+          cat ./tmp.json | jq .taskDefinition | jq 'with_entries(select([.key] | inside(["placementConstraints","taskRoleArn","volumes","requiresCompatibilities","cpu","memory","networkMode","family", "containerDefinitions", "executionRoleArn"])))' > ./newImage.json
+          rm -rf ./tmp.json
+          echo "new IMAGE"
+          echo "==="
+          UPDATED_TASK_DEF=$(aws ecs register-task-definition --cli-input-json file://newImage.json)
+          FAMILY_REVISION=$(echo $UPDATED_TASK_DEF | jq .taskDefinition.taskDefinitionArn | tr -d '"' | sed -e 's/.*://')
+          echo "updating to $ECS_SERVICE:$FAMILY_REVISION"
+          rm -rf ./newImage.json
+          aws ecs update-service \
+            --region $ECS_REGION \
+            --cluster $ECS_CLUSTER \
+            --force-new-deployment \
+            --service arn:aws:ecs:$ECS_REGION:$ACCOUNT_ID:service/$ECS_CLUSTER/$ECS_SERVICE \
+            --task-definition $ECS_SERVICE:$FAMILY_REVISION
+
+          echo "updated to $ECS_SERVICE:$FAMILY_REVISION with $TARGET_OCITAG."
+          echo "this pipeline won't wait for services to be restarted"
+      - uses: ravsamhq/notify-slack-action@v1
+        if: always()
+        with:
+          status: ${{ job.status }}
+          notification_title: '{workflow} has {status_message}'
+          message_format: '{emoji} *{workflow}* {status_message} when deploying ${{ inputs.ecs_aws_cluster }}:${{ inputs.ecs_aws_service }}:${{ steps.deploy.outputs.task_definition }}'
+          footer: '${{ inputs.aws_account_id }}:${{ inputs.ecs_aws_region }}'
+          notify_when: 'failure'
+          # mention_users: ''
+          # mention_users_when: 'failure,warnings'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEB_HOOK }}
