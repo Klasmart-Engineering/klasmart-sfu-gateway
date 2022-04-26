@@ -26,8 +26,8 @@ export function createServer(registrar: RedisRegistrar) {
         memwatch.on("stats", (stats) => {
             Logger.debug(`💾 Memory usage: ${stats.used_heap_size / 1024 / 1024} MB`);
             const diff = hd.end();
-            diff.change.details.filter((change) => {return change["-"] <= 0 && change["+"] >= 0 && change.size_bytes >= 0;}).forEach((change) => {
-                Logger.debug(`💾 Potential Leakage of ${change.what}, size: ${change.size}, ${change["+"]} new allocations`);
+            diff.change.details.filter((change) => {return change["-"] <= change["+"] && change.size_bytes > 0;}).forEach((change) => {
+                Logger.debug(`💾 Potential Leakage of ${change.what}, size: ${change.size}, ${change["+"] - change["-"]} net allocations`);
             });
             hd = new HeapDiff();
         });
@@ -77,7 +77,7 @@ export function createServer(registrar: RedisRegistrar) {
             }
 
             while (ws.readyState === WebSocket.OPEN) {
-                const { cursor, events } = await registrar.waitForTrackChanges(roomId, currentCursor);
+                const { cursor, events } = await registrar.waitForTrackChanges(roomId, ws, currentCursor);
                 if (events) { ws.send(JSON.stringify(events)); }
                 currentCursor = cursor;
             }

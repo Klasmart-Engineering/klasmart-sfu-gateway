@@ -2,6 +2,7 @@ import {Cluster, Redis as IORedis} from "ioredis";
 import { MAX_SFU_LOAD } from "./selectSfu";
 import { getEnvNumber } from "./service";
 import {Logger} from "./logger";
+import {WebSocket} from "ws";
 
 export type Type<T> = string & {
     /* This value does not exist during execution and is only used for type matching during compile time */
@@ -68,12 +69,31 @@ export async function selectSfuFromLoad(newLoad: number, sfuStatuses: {id: SfuId
 
 export type TrackRegistrar = {
     getTracks(roomId: RoomId): Promise<TrackInfo[]>;
-    waitForTrackChanges(roomId: RoomId, cursor?: string): Promise<{cursor?: string, events?: TrackInfoEvent[]}>;
+    waitForTrackChanges(roomId: RoomId, ws: WebSocket, cursor?: string): Promise<{cursor?: string, events?: TrackInfoEvent[]}>;
 };
 
 export type Registrar = SfuRegistrar & TrackRegistrar;
 
 export class RedisRegistrar implements Registrar {
+    public constructor(
+        private readonly redis: IORedis | Cluster,
+        // Map so that each connected user only has one duplicate connection.  There seems to be a memory leak in the IORedis library when using cluster mode and you duplicate the connection.
+        private readonly userConnections: Map<WebSocket, IORedis | Cluster> = new Map(),
+        private readonly userTimouts: Map<WebSocket, NodeJS.Timeout> = new Map(),
+    ) {
+        redis.addListener("error", (err) => {
+            Logger.error(err);
+        });
+        redis.addListener("reconnecting", (err) => {
+            Logger.log(err);
+        });
+        redis.addListener("end", () => {
+            Logger.warn("Redis connection ended");
+        });
+        redis.addListener("close", () => {
+            Logger.warn("Redis connection closed");
+        });
+    }
     // Gets an SFU which has the capacity to handle the new load. If no SFU can fully handle the new load, return the SFU with the least load.
     public async getAvailableSfu(newLoad: number, excludeId?: SfuId) {
         const sfuIds = await this.getSfuIds(excludeId);
@@ -145,41 +165,41 @@ export class RedisRegistrar implements Registrar {
 
     }
 
-    public async waitForTrackChanges(roomId: RoomId, cursor="0") {
-        const redis = this.redis.duplicate();
+    public async waitForTrackChanges(roomId: RoomId, ws: WebSocket, cursor="0") {
+        if (!this.userConnections.has(ws)) {
+            this.userConnections.set(ws, this.redis.duplicate());
+            this.userTimouts.set(ws, setTimeout(() => {
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                this.userConnections.get(ws)?.disconnect();
+                this.userConnections.delete(ws);
+                this.userTimouts.delete(ws);
+            }, 15 * 1000));
+        }
+        // We just checked to make the connection exists, so we don't need to check again.
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const redis = this.userConnections.get(ws)!;
+        // Refresh timeout so we don't lose the connection
+        this.userTimouts.get(ws)?.refresh();
         try {
             const key = RedisRegistrar.keyNotification(RedisRegistrar.keyRoomTracks(roomId));
-            const readResult = await redis.xread("BLOCK", 10000, "STREAMS", key, cursor);
+            const readResult = await redis.xread("BLOCK", 1000, "STREAMS", key, cursor);
 
-            if (!readResult) { return { cursor }; }
+            if (!readResult) {
+                return {cursor};
+            }
 
-            const [ [ , streamItems ] ] = readResult;
+            const [[, streamItems]] = readResult;
             return {
-                cursor: streamItems[streamItems.length-1][0],
-                events: streamItems.flatMap(([,keyValues]) =>
+                cursor: streamItems[streamItems.length - 1][0],
+                events: streamItems.flatMap(([, keyValues]) =>
                     deserializeRedisStreamFieldValuePairs<TrackInfoEvent>(keyValues) ?? []
                 ),
             };
-        } finally {
-            redis.disconnect();
         }
-    }
-
-    public constructor(
-        private readonly redis: IORedis | Cluster
-    ) {
-        redis.addListener("error", (err) => {
-            Logger.error(err);
-        });
-        redis.addListener("reconnecting", (err) => {
-            Logger.log(err);
-        });
-        redis.addListener("end", () => {
-            Logger.warn("Redis connection ended");
-        });
-        redis.addListener("close", () => {
-            Logger.warn("Redis connection closed");
-        });
+        catch (e) {
+            Logger.error(e);
+            return { cursor };
+        }
     }
 
     private async getJsonEncoded<T>(key: string) {
