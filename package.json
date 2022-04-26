@@ -7,7 +7,7 @@
     "build": "webpack --stats-modules-space 999",
     "start": "node dist/index.js",
     "dev": "ts-node-dev src/entry.ts",
-    "profile": "node -r ts-node/register --inspect-brk src/entry.ts",
+    "profile": "node --inspect dist/index.js",
     "test:unit": "ENV_FILE=./config/.env.test jest --coverage",
     "test": "npm run test:unit",
     "lint": "eslint --ext .ts src/**",
@@ -16,6 +16,8 @@
   "author": "Josiah Evans <josiah.evans@kidsloop.live>, Owen Delahoy <owen.delahoy@kidsloop.live>",
   "license": "ISC",
   "devDependencies": {
+    "@types/airbnb__node-memwatch": "^2.0.0",
+    "@airbnb/node-memwatch": "^2.0.0",
     "@types/cookie": "^0.5.0",
     "@types/http-proxy": "^1.17.8",
     "@types/ioredis": "^4.28.10",

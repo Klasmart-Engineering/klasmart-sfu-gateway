@@ -7,6 +7,7 @@ import {IScheduler, OrgId, ScheduleId, Scheduler} from "./scheduler";
 import {selectSfu} from "./selectSfu";
 import {Url} from "url";
 import {Logger} from "./logger";
+import memwatch, {HeapDiff} from "@airbnb/node-memwatch";
 
 export function getEnvNumber(envVar: string | undefined, defaultValue: number): number {
     if (envVar) {
@@ -20,6 +21,23 @@ export function getEnvNumber(envVar: string | undefined, defaultValue: number): 
 }
 
 export function createServer(registrar: RedisRegistrar) {
+    if (process.env.DEBUG_MEMORY) {
+        let hd = new HeapDiff();
+        memwatch.on("stats", (stats) => {
+            Logger.debug(`💾 Memory usage: ${stats.used_heap_size / 1024 / 1024} MB`);
+            const diff = hd.end();
+            diff.change.details.filter((change) => {return change["-"] <= 0 && change["+"] >= 0 && change.size_bytes >= 0;}).forEach((change) => {
+                Logger.debug(`💾 Potential Leakage of ${change.what}, size: ${change.size}, ${change["+"]} new allocations`);
+            });
+            hd = new HeapDiff();
+        });
+        setInterval(() => {
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            memwatch.gc();
+        }, 60000);
+    }
+
     const server = new Server();
     if (!process.env.CMS_ENDPOINT) {
         throw new Error("CMS_ENDPOINT environment variable must be set");
