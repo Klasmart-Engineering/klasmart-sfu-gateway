@@ -52,7 +52,7 @@ jobs:
               id: npm-build
               run: npm run build
             - name: Build and Push Container
-              uses: KL-Engineering/github-action-workflows/.github/actions/docker-build-push@fd75ae138cbb40d666d49b091ec2a4220a0ebeb3
+              uses: ./.github/actions/docker-build-and-push
               with:
                 environment: ${{ needs.generate-version.outputs.tag }}
                 region: global
