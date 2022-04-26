@@ -11,6 +11,7 @@ import {
 } from "../redis";
 import {FromScheduleStrategy, RandomStrategy} from "../strategy";
 import {Scheduler, newOrgId, newScheduleId} from "../scheduler";
+import { WebSocket} from "ws";
 
 class MockRegistrar implements Registrar {
     private sfuStatuses = new Map<SfuId, SfuStatus>();
@@ -61,12 +62,13 @@ class MockRegistrar implements Registrar {
         return this.tracks;
     }
 
-    public async waitForTrackChanges(_roomId: RoomId, _cursor?: string): Promise<{ cursor?: string; events?: TrackInfoEvent[] }> {
-        throw new Error("Not implemented");
-    }
 
     public setSfuStatus(sfuId: SfuId, status: SfuStatus) {
         this.sfuStatuses.set(sfuId, status);
+    }
+
+    waitForTrackChanges(_roomId: RoomId, _ws: WebSocket, _cursor: string | undefined): Promise<{ cursor?: string; events?: TrackInfoEvent[] }> {
+        return Promise.resolve({});
     }
 }
 
