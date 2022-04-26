@@ -167,4 +167,15 @@ describe("selectSfu", () => {
         const sfuId = await strategy.getSfuId();
         await expect(sfuId).toBeUndefined();
     });
+
+    it("should clear the schedule after expiration", async () => {
+        const sfuIds: SfuId[] = [];
+        const tracks: TrackInfo[] = [];
+        const mockRegistrar = new MockRegistrar(sfuIds, tracks);
+        const scheduler = new Scheduler("1");
+        const strategy = new FromScheduleStrategy(tracks, mockRegistrar, scheduler, newScheduleId("1"), newOrgId("2"), "");
+        await strategy.getSfuId();
+        await new Promise<void>(resolve => setTimeout(resolve, 1000));
+        expect(scheduler.cacheSize).toEqual(0);
+    });
 });

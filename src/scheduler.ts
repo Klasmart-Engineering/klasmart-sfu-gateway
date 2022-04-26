@@ -1,4 +1,3 @@
-import Keyv from "keyv";
 import {Type} from "./redis";
 import {Axios, AxiosRequestConfig} from "axios";
 import {Logger} from "./logger";
@@ -22,8 +21,12 @@ export type IScheduler = {
 export class Scheduler implements IScheduler {
     public constructor(
         private readonly cmsEndpoint: string,
-        private cache: Keyv<Roster> = new Keyv(),
-        private ttl: number = getEnvNumber("CACHE_TTL", 15000)) {
+        private cache = new Map<string, Roster>(),
+        private ttl = getEnvNumber(process.env.CACHE_TTL, 15000)) {
+    }
+
+    public get cacheSize() {
+        return this.cache.size;
     }
 
     public async getSchedule(scheduleId: ScheduleId, orgId: OrgId, cookie: string) {
@@ -33,7 +36,11 @@ export class Scheduler implements IScheduler {
         }
 
         schedule = await this.getUpdatedSchedule(scheduleId, orgId, cookie);
-        await this.cache.set(`${scheduleId}-${orgId}`, schedule, this.ttl);
+        this.cache.set(`${scheduleId}-${orgId}`, schedule);
+        setTimeout(() => {
+            Logger.debug(`Deleting ${scheduleId}-${orgId} from cache`);
+            this.cache.delete(`${scheduleId}-${orgId}`);
+        }, this.ttl);
         return schedule;
     }
 
