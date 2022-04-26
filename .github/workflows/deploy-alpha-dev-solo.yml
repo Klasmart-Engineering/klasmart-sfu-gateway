@@ -11,7 +11,7 @@ on:
       ecs_aws_service:
         required: true
         type: string
-        default: kidsloop-alpha-live-sfu
+        default: kidsloop-alpha-live-sfu-gateway
         description: "AWS ECS service name"
       aws_account_id:
         required: false
